@@ -10,10 +10,10 @@
 #define STORAGE_SIZE 200
 
 // Defins the pins
-#define PIN_DHT 3			   // DHT data line to pin 3
+#define PIN_DHT 3			   // DHT data pin
 #define PIN_Ultrasonic_trig 9  // Ultrasonic triger pin
 #define PIN_Ultrasonic_echo 10 // Ultrasonic echo pin
-#define SPI_Radio 7			   // Radio data line to pin 8
+#define SPI_Radio 7			   // Radio CSN pin
 
 #define DHTType DHT11 // Specify the type of DHT
 
@@ -44,7 +44,7 @@ struct Measurement_struct
 struct Data_struct
 {
 	uint16 first_entry = 0;	 // First entries with data
-	uint16 end = 0;			 // First empty entriy
+	uint16 end_entry = 0;	 // First empty entriy
 	byte data[STORAGE_SIZE]; // Data storage
 };
 
@@ -62,7 +62,13 @@ void Init_dht();
 // Decleration of function
 void Radio();
 void Measurement_DHT();
+void Measurement_Ultrasonic();
 
+uint8 Meassurment_size()
+{
+	uint8 size = sizeof(Measurement_struct);
+	return size;
+}
 uint8 Data_entry_size(uint16 entry)
 {
 	return sizeof(Measurement_struct);
@@ -72,21 +78,30 @@ void Data_first_delete()
 	// Get the size of the entry
 	uint16 size = Data_entry_size(Data.first_entry);
 
-	// Sett the memory to zero
-	memset(&Data.data[Data.first_entry], 0, size);
-
+	// Sett the memory to zero, byte by byte
+	for (int i = 0; i < size; i++)
+	{
+		Data.data[(i + Data.first_entry) % STORAGE_SIZE] = 0;
+	}
 	// move first_entry with the size, to the new first entry
 	Data.first_entry = (Data.first_entry + size) % STORAGE_SIZE;
 }
 
 void Move_meassurment_to_data()
 {
-
+	// Move all the meassurments from the Meassurment struct to last entris in data
 	uint16 size = sizeof(Measurement);
-	// Coppy evrything in meassurment struct to data struct
-	memcpy(&Measurement, &Data.end, size);
-	// Move end pointer to
-	Data.end = (Data.end + size) % STORAGE_SIZE;
+
+	int *Measurment_ptr = (int *)&Measurement;
+
+	// Coppy evrything in meassurment struct to data struct byte by byte
+	for (int i = 0; i < size; i++)
+	{
+		Data.data[(i + Data.end_entry) % STORAGE_SIZE] = Measurment_ptr[i];
+	}
+
+	// Move end pointer to next entry
+	Data.end_entry = (Data.end_entry + size) % STORAGE_SIZE;
 }
 void setup()
 {
@@ -94,7 +109,7 @@ void setup()
 	Serial.begin(9600);
 
 	// Initialization function
-	Init_CanSat();
+	Init_CanSat(); // Dose nothing right now
 	Init_Radio();
 	Init_Ultrasonic();
 	Init_dht();
@@ -109,7 +124,7 @@ void loop()
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
 
-	// Radio over the data in Data
+	// Radio over the data from Data
 	Radio();
 	delay(500);
 }
@@ -184,7 +199,7 @@ void Measurement_Ultrasonic()
 
 void Radio()
 {
-	// Getting the size of data
+	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
 	radio.write(&(Data.first_entry), size);
@@ -195,9 +210,3 @@ void Radio()
 	// Delete entry
 	Data_first_delete();
 }
-
-
-
-
-
-
