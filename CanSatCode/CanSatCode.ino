@@ -4,21 +4,22 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <DHT.h> // Required header
+#include <DHT.h>			   // Required header
+#include <OneWire.h>		   // Required header
+#include <DallasTemperature.h> // Required header
 
 // Defins the data storage size in bytes
 #define STORAGE_SIZE 200
 
 // Defins the pins
-#define PIN_DHT 3			   // DHT data pin
 #define PIN_Ultrasonic_trig 9  // Ultrasonic triger pin
 #define PIN_Ultrasonic_echo 10 // Ultrasonic echo pin
 #define SPI_Radio 7			   // Radio CSN pin
+#define DS18B20_PIN 2		   // Dataline is plugged into digital pin 2
 
-#define DHTType DHT11 // Specify the type of DHT
-
-DHT dht = DHT(PIN_DHT, DHTType); // instance of DHT class
-RF24 radio(8, SPI_Radio);		 // CE, CSN
+RF24 radio(8, SPI_Radio);			 // CE, CSN
+OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
+DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemperature
 
 // Some good definition
 #define uint8 uint8_t
@@ -43,9 +44,9 @@ struct Measurement_struct
 {
 	// add your Measurement data here
 	// For example:
-	float temperature = 0;
-	float humidity = 0;
+
 	uint8 distance = 0; // Stored as 0.1 cm
+	uint8 temp = 0;
 };
 struct Data_struct
 {
@@ -119,14 +120,15 @@ void setup()
 	Init_CanSat(); // Dose nothing right now
 	Init_Radio();
 	Init_Ultrasonic();
-	Init_dht();
+	Init_DS18B20();
 }
 
 void loop()
 {
 
 	// Take the measurement
-	Measurement_DHT();
+	// Measurement_DHT();
+	Measurement_Ultrasonic();
 	Measurement_Ultrasonic();
 
 	// Move the Measurement to Data
@@ -137,59 +139,10 @@ void loop()
 	delay(500);
 }
 
-void Init_Radio()
+void Measurement_DS18B20()
 {
-	radio.begin();
-
-	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
-	radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
-	radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
-
-	radio.openWritingPipe(CanSat.address);
-	radio.setChannel(21); // set the channel to 21
-	// we have teh chanels 21-30 and 81-90
-	
-
-	radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
-
-	radio.stopListening();
-}
-void Init_Ultrasonic()
-{
-	pinMode(PIN_Ultrasonic_trig, OUTPUT); // Sets the PIN_Ultrasonic_trig as an Output
-	pinMode(PIN_Ultrasonic_echo, INPUT);  // Sets the PIN_Ultrasonic_echo as an Input
-}
-void Init_dht()
-{
-	dht.begin(); // first_entry the sensor (wiring)
-}
-void Init_CanSat()
-{
-}
-
-void Measurement_DHT()
-{
-
-	// CanSat.temperature  = dht.readTemperature();  // Reading temperature
-	float humidity, temperature = 0;
-
-	humidity = dht.readHumidity(); // Reading humidity
-	temperature = dht.readTemperature();
-	Measurement.humidity = humidity;
-	Measurement.temperature = humidity;
-	if (isnan(temperature) || isnan(humidity))
-	{
-		Serial.println("Failed to read values from the DHT sensor!");
-		delay(1000);
-		return; // Do not continue the rest of the loop and rewind!
-	}
-
-	// Print out values
-	// Serial.print("Temperature: ");
-	// Serial.print(temperature);
-	Serial.print("°C   Humidity: ");
-	Serial.print(humidity);
-	Serial.println("%");
+	sensors.requestTemperatures(); // send request to device to get temperature
+	Measurement.temp = sensors.getTempCByIndex(0);
 }
 void Measurement_Ultrasonic()
 {
@@ -212,16 +165,31 @@ void Measurement_Ultrasonic()
 	Measurement.distance = distance;
 }
 
-void Radio()
+void Init_Radio()
 {
-	// Getting the size of datae
-	uint16 size = Data_entry_size(Data.first_entry);
+	radio.begin();
 
-	radio.write(&(Data.first_entry), size);
+	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
+	radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	// radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 
-	// We need to check if the message got recived
-	// end if it did, delete the entry, but for now we assume it worked
+	radio.openWritingPipe(CanSat.address);
+	radio.setChannel(21); // set the channel to 21
+	// we have teh chanels 21-30 and 81-90
 
-	// Delete entry
-	Data_first_delete();
+	radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
+
+	radio.stopListening();
+}
+void Init_Ultrasonic()
+{
+	pinMode(PIN_Ultrasonic_trig, OUTPUT); // Sets the PIN_Ultrasonic_trig as an Output
+	pinMode(PIN_Ultrasonic_echo, INPUT);  // Sets the PIN_Ultrasonic_echo as an Input
+}
+void Init_DS18B20()
+{
+	sensors.begin(); // start the sensor (wiring)
+}
+void Init_CanSat()
+{
 }
