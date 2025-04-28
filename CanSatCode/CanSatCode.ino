@@ -60,16 +60,18 @@ Measurement_struct Measurement;
 CanSat_struct CanSat;
 Data_struct Data;
 
+
+// Decleration of function
+void My_Radio();
+void Measurement_DHT();
+void Measurement_Ultrasonic();
+
 //  Decleration of initialization functions
 void Init_Radio();
 void Init_CanSat();
 void Init_Ultrasonic();
 void Init_dht();
 
-// Decleration of function
-void Radio();
-void Measurement_DHT();
-void Measurement_Ultrasonic();
 
 uint8 Meassurment_size()
 {
@@ -135,7 +137,7 @@ void loop()
 	Move_meassurment_to_data();
 
 	// Radio over the data from Data
-	Radio();
+	My_Radio();
 	delay(500);
 }
 
@@ -192,4 +194,18 @@ void Init_DS18B20()
 }
 void Init_CanSat()
 {
+}
+
+void Radio()
+{
+	// Getting the size of datae
+	uint16 size = Data_entry_size(Data.first_entry);
+
+	radio.write(&(Data.first_entry), size);
+
+	// We need to check if the message got recived
+	// end if it did, delete the entry, but for now we assume it worked
+
+	// Delete entry
+	Data_first_delete();
 }

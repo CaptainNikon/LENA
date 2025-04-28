@@ -58,8 +58,11 @@ void loop()
 		Measurement_struct Measurement;
 		radio.read(&Measurement, sizeof(Measurement));
 
-		Serial.print(Measurement.distance);
-		Serial.print("mm\t");
+    Serial.print(Measurement.distance);
+    Serial.print("mm\t");
+    Serial.print(Measurement.temp);
+    Serial.print("C\t");
+    Serial.print("\n");
 	}
 	else
 	{
