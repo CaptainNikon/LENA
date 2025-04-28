@@ -26,6 +26,12 @@ RF24 radio(8, SPI_Radio);		 // CE, CSN
 #define uint16 uint16_t
 #define int16 int16_t
 
+// wtf dose this macro?!?!
+#define runEvery(t) for (static typeof(t) _lasttime; (typeof(t))((typeof(t))millis() - _lasttime) > (t); _lasttime += (t))
+//  runEvery(20){
+//		Code....
+//	}
+
 // CanSat structure
 struct CanSat_struct
 {
@@ -92,10 +98,11 @@ void Move_meassurment_to_data()
 	// Move all the meassurments from the Meassurment struct to last entris in data
 	uint16 size = sizeof(Measurement);
 
-	int *Measurment_ptr = (int *)&Measurement;
+	// pointer to measurment values
+	uint16 *Measurment_ptr = (uint16 *)&Measurement;
 
-	// Coppy evrything in meassurment struct to data struct byte by byte
-	for (int i = 0; i < size; i++)
+	// Coppy evrything in measurment struct to data struct byte by byte
+	for (uint16 i = 0; i < size; i++)
 	{
 		Data.data[(i + Data.end_entry) % STORAGE_SIZE] = Measurment_ptr[i];
 	}
@@ -117,6 +124,7 @@ void setup()
 
 void loop()
 {
+
 	// Take the measurement
 	Measurement_DHT();
 	Measurement_Ultrasonic();
@@ -133,7 +141,14 @@ void Init_Radio()
 {
 	radio.begin();
 
+	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
+	radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
+
 	radio.openWritingPipe(CanSat.address);
+	radio.setChannel(21); // set the channel to 21
+	// we have teh chanels 21-30 and 81-90
+	
 
 	radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
 
