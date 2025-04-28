@@ -5,7 +5,7 @@
 #include <RF24.h>
 #include <DHT.h> // Required header
 
-#define PIN_DHT 3 // DHT data pin
+#define PIN_DHT 2 // DHT data pin
 RF24 radio(9, 8); // CE, CSN
 
 #define DHTType DHT11 // Specify the type of DHT
@@ -29,11 +29,21 @@ struct Measurement_struct
 	float temp = 0;
 };
 
+struct Ground_struct
+{
+	// add your Measurement data here
+	// For example:
+	float humidity = 0;
+	float temperature = 0;
+};
+
 void Init_dht();
 
 Measurement_struct Measurement;
+Ground_struct Ground;
 void setup()
 {
+	Init_dht();
 	while (!Serial)
 		;
 	Serial.begin(9600);
@@ -58,6 +68,8 @@ void loop()
 		Measurement_struct Measurement;
 		radio.read(&Measurement, sizeof(Measurement));
 
+		Serial.print("Recieved data: \n");
+
 		Serial.print(Measurement.distance);
 		Serial.print("mm\t");
 		Serial.print(Measurement.temp);
@@ -70,6 +82,8 @@ void loop()
 		// Serial.print("No radio\n");
 		// delay(500);
 	}
+	Measurement_DHT();
+	delay(500);
 }
 
 void Init_dht()
@@ -80,13 +94,12 @@ void Init_dht()
 void Measurement_DHT()
 {
 
-	// CanSat.temperature  = dht.readTemperature();  // Reading temperature
-	float humidity = 0, temperature = 0;
+	// Ground.temperature  = dht.readTemperature();  // Reading temperature
 
-	humidity = dht.readHumidity(); // Reading humidity
-	temperature = dht.readTemperature();
+	Ground.humidity = dht.readHumidity(); // Reading humidity
 
-	if (isnan(temperature) || isnan(humidity))
+	Ground.temperature = dht.readTemperature();
+	if (isnan(Ground.temperature) || isnan(Ground.humidity))
 	{
 		Serial.println("Failed to read values from the DHT sensor!");
 		delay(1000);
@@ -95,8 +108,8 @@ void Measurement_DHT()
 
 	// Print out values
 	Serial.print("Temperature: ");
-	Serial.print(temperature);
+	Serial.print(Ground.temperature);
 	Serial.print("°C   Humidity: ");
-	Serial.print(humidity);
+	Serial.print(Ground.humidity);
 	Serial.println("%");
 }
