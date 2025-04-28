@@ -6,7 +6,7 @@
 #include <DHT.h> // Required header
 
 #define PIN_DHT 3 // DHT data pin
-RF24 radio(8, 7); // CE, CSN
+RF24 radio(9, 8); // CE, CSN
 
 #define DHTType DHT11 // Specify the type of DHT
 
@@ -17,7 +17,7 @@ RF24 radio(8, 7); // CE, CSN
 #define int16 int16_t
 
 // Address through which Rx/Tx modules communicate.
-byte address[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
+byte address[6] = "Canst";
 
 DHT dht = DHT(PIN_DHT, DHTType); // instance of DHT class
 
@@ -25,8 +25,8 @@ struct Measurement_struct
 {
 	// add your Measurement data here
 	// For example:
-	uint8 distance = 0; // Stored as 0.1 cm
-	uint8 temp = 0;
+	int distance = 0;
+	float temp = 0;
 };
 
 void Init_dht();
@@ -44,10 +44,10 @@ void setup()
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 
 	radio.openReadingPipe(0, address);
-	radio.setChannel(21); // set the channel to 21
-	// we have the chanels 21-30 and 81-90
-
-	radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
+	// radio.setChannel(21); // set the channel to 21
+	//  we have the chanels 21-30 and 81-90
+	radio.startListening();
+	// radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
 }
 
 void loop()
@@ -67,8 +67,8 @@ void loop()
 	else
 	{
 		// Measurement_DHT();
-		Serial.print("No radio\n");
-		delay(500);
+		// Serial.print("No radio\n");
+		// delay(500);
 	}
 }
 

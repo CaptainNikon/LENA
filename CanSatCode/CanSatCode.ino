@@ -14,10 +14,11 @@
 // Defins the pins
 #define PIN_Ultrasonic_trig 3 // Ultrasonic triger pin
 #define PIN_Ultrasonic_echo 4 // Ultrasonic echo pin
-#define SPI_Radio 7			  // Radio CSN pin
-#define DS18B20_PIN 2		  // Dataline is plugged into digital pin 2
+#define SPI_Radio 10		  // Radio CSN pin
+#define CE_PIN 9
+#define DS18B20_PIN 2 // Dataline is plugged into digital pin 2
 
-RF24 radio(8, SPI_Radio);			 // CE, CSN
+RF24 radio(CE_PIN, SPI_Radio);		 // CE, CSN
 OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
 DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemperature
 
@@ -46,8 +47,8 @@ struct Measurement_struct
 	// add your Measurement data here
 	// For example:
 
-	uint8 distance = 0; // Stored as 0.1 cm
-	uint8 temp = 0;
+	int distance = 0; // Stored as 0.1 cm
+	float temp = 0;
 };
 struct Data_struct
 {
@@ -132,6 +133,7 @@ void loop()
 	// Measurement_DHT();
 	Measurement_Ultrasonic();
 	Measurement_DS18B20();
+
 	Serial.print("distance\t");
 	Serial.print(Measurement.distance);
 	Serial.print("   temp\t");
@@ -164,11 +166,11 @@ void Measurement_Ultrasonic()
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
 	long duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
 	// Calculating the distance
-	long
-		distance = duration * 0.034 * 10 / 2.;
+	long distance = duration * 0.034 * 10 / 2.;
+
 	if (distance > 200.0)
 	{
-		distance = 0;
+		// distance = 200;
 	}
 	Measurement.distance = distance;
 }
@@ -182,10 +184,10 @@ void Init_Radio()
 	// radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 
 	radio.openWritingPipe(address);
-	radio.setChannel(21); // set the channel to 21
-	// we have teh chanels 21-30 and 81-90
+	// radio.setChannel(21); // set the channel to 21
+	//  we have teh chanels 21-30 and 81-90
 
-	radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
+	// radio.setPALevel(RF24_PA_HIGH); // Change this to RF24_PA_HIGH when we want high power
 
 	radio.stopListening();
 }
@@ -207,8 +209,8 @@ void My_Radio()
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
-	radio.stopListening();
-	radio.write(&(Data.data[Data.first_entry]), size);
+	// radio.write(&(Data.data[Data.first_entry]), size);
+	radio.write(&(Measurement), sizeof(Measurement_struct));
 
 	// We need to check if the message got recived
 	// end if it did, delete the entry, but for now we assume it worked
