@@ -60,7 +60,6 @@ Measurement_struct Measurement;
 CanSat_struct CanSat;
 Data_struct Data;
 
-
 // Decleration of function
 void My_Radio();
 void Measurement_DHT();
@@ -71,7 +70,6 @@ void Init_Radio();
 void Init_CanSat();
 void Init_Ultrasonic();
 void Init_dht();
-
 
 uint8 Meassurment_size()
 {

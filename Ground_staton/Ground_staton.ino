@@ -45,7 +45,7 @@ void setup()
 
 	radio.openWritingPipe(address);
 	radio.setChannel(21); // set the channel to 21
-	// we have teh chanels 21-30 and 81-90
+	// we have the chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
 }
@@ -66,8 +66,9 @@ void loop()
 	}
 	else
 	{
-		// Measurement_DHT();
-		// delay(500);
+		//Measurement_DHT();
+    Serial.print("No radio\n");
+		delay(500);
 	}
 }
 
