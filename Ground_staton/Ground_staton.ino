@@ -39,11 +39,11 @@ void setup()
 	Serial.begin(9600);
 	radio.begin();
 
-	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
-	radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
-	// radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
+	// radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
+	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 
-	radio.openWritingPipe(address);
+	radio.openReadingPipe(0, address);
 	radio.setChannel(21); // set the channel to 21
 	// we have the chanels 21-30 and 81-90
 
@@ -58,16 +58,16 @@ void loop()
 		Measurement_struct Measurement;
 		radio.read(&Measurement, sizeof(Measurement));
 
-    Serial.print(Measurement.distance);
-    Serial.print("mm\t");
-    Serial.print(Measurement.temp);
-    Serial.print("C\t");
-    Serial.print("\n");
+		Serial.print(Measurement.distance);
+		Serial.print("mm\t");
+		Serial.print(Measurement.temp);
+		Serial.print("C\t");
+		Serial.print("\n");
 	}
 	else
 	{
-		//Measurement_DHT();
-    Serial.print("No radio\n");
+		// Measurement_DHT();
+		Serial.print("No radio\n");
 		delay(500);
 	}
 }

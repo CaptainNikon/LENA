@@ -9,13 +9,13 @@
 #include <DallasTemperature.h> // Required header
 
 // Defins the data storage size in bytes
-#define STORAGE_SIZE 200
+#define STORAGE_SIZE 50
 
 // Defins the pins
-#define PIN_Ultrasonic_trig 9  // Ultrasonic triger pin
-#define PIN_Ultrasonic_echo 10 // Ultrasonic echo pin
-#define SPI_Radio 7			   // Radio CSN pin
-#define DS18B20_PIN 2		   // Dataline is plugged into digital pin 2
+#define PIN_Ultrasonic_trig 3 // Ultrasonic triger pin
+#define PIN_Ultrasonic_echo 4 // Ultrasonic echo pin
+#define SPI_Radio 7			  // Radio CSN pin
+#define DS18B20_PIN 2		  // Dataline is plugged into digital pin 2
 
 RF24 radio(8, SPI_Radio);			 // CE, CSN
 OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
@@ -26,9 +26,10 @@ DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemp
 #define int8 int8_t
 #define uint16 uint16_t
 #define int16 int16_t
+const byte address[6] = "Canst";
 
 // wtf dose this macro?!?!
-#define runEvery(t) for (static typeof(t) _lasttime; (typeof(t))((typeof(t))millis() - _lasttime) > (t); _lasttime += (t))
+// #define runEvery(t) for (static typeof(t) _lasttime; (typeof(t))((typeof(t))millis() - _lasttime) > (t); _lasttime += (t))
 //  runEvery(20){
 //		Code....
 //	}
@@ -37,7 +38,7 @@ DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemp
 struct CanSat_struct
 {
 	// Ground station name?
-	byte address[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
+	// byte address[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
 	byte comands[10];
 };
 struct Measurement_struct
@@ -90,6 +91,7 @@ void Data_first_delete()
 	{
 		Data.data[(i + Data.first_entry) % STORAGE_SIZE] = 0;
 	}
+
 	// move first_entry with the size, to the new first entry
 	Data.first_entry = (Data.first_entry + size) % STORAGE_SIZE;
 }
@@ -129,13 +131,19 @@ void loop()
 	// Take the measurement
 	// Measurement_DHT();
 	Measurement_Ultrasonic();
-	Measurement_Ultrasonic();
+	Measurement_DS18B20();
+	Serial.print("distance\t");
+	Serial.print(Measurement.distance);
+	Serial.print("   temp\t");
+	Serial.print(Measurement.temp);
+	Serial.print("\n");
 
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
 
 	// Radio over the data from Data
 	My_Radio();
+
 	delay(500);
 }
 
@@ -169,11 +177,11 @@ void Init_Radio()
 {
 	radio.begin();
 
-	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
-	radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	// radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
+	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	// radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 
-	radio.openWritingPipe(CanSat.address);
+	radio.openWritingPipe(address);
 	radio.setChannel(21); // set the channel to 21
 	// we have teh chanels 21-30 and 81-90
 
@@ -194,12 +202,13 @@ void Init_CanSat()
 {
 }
 
-void Radio()
+void My_Radio()
 {
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
-	radio.write(&(Data.first_entry), size);
+	radio.stopListening();
+	radio.write(&(Data.data[Data.first_entry]), size);
 
 	// We need to check if the message got recived
 	// end if it did, delete the entry, but for now we assume it worked
