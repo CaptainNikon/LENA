@@ -1,14 +1,24 @@
-// C code for nRF24L01 Receiver
-// Shahab Fatemi (Jan 2023)
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <DHT.h> // Required header
+#include <DHT.h>
+
+// Include the libraries for the OLED display
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
 
 #define PIN_DHT 2 // DHT data pin
 RF24 radio(9, 8); // CE, CSN
 
 #define DHTType DHT11 // Specify the type of DHT
+
+// OLED config
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Some good definition
 #define uint8 uint8_t
@@ -75,6 +85,8 @@ void loop()
 		Serial.print(Measurement.temp);
 		Serial.print("C\t");
 		Serial.print("\n");
+
+		updateDisplayIfNeeded();
 	}
 	else
 	{
@@ -91,9 +103,39 @@ void Init_dht()
 	dht.begin(); // first_entry the sensor (wiring)
 }
 
+void Init_display() {
+	if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+		while (true); // hang on failure
+	}
+	display.clearDisplay();
+	display.setTextSize(1);
+	display.setTextColor(SSD1306_WHITE);
+	display.setCursor(0, 0);
+	display.println("Waiting...");
+	display.display();
+}
+
+void updateDisplayIfNeeded() {
+	static unsigned long lastUpdate = 0;
+	if (millis() - lastUpdate >= 1000) {
+		lastUpdate = millis();
+		packetsPerSecond = packetCount;
+		packetCount = 0;
+
+		display.clearDisplay();
+		display.setCursor(0, 0);
+		display.print("Packets/s: ");
+		display.println(packetsPerSecond);
+		display.setCursor(0, 16);
+		display.print("Temp: ");
+		display.print(Ground.temperature);
+		display.print(" C");
+		display.display();
+	}
+}
+
 void Measurement_DHT()
 {
-
 	// Ground.temperature  = dht.readTemperature();  // Reading temperature
 
 	Ground.humidity = dht.readHumidity(); // Reading humidity
