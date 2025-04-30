@@ -7,6 +7,8 @@
 #include <DHT.h>			   // Required header
 #include <OneWire.h>		   // Required header
 #include <DallasTemperature.h> // Required header
+#include <Wire.h>			   // Wire library - used for I2C communication
+#include <Adafruit_LIS2MDL.h>
 
 // Defins the data storage size in bytes
 #define STORAGE_SIZE 50
@@ -17,10 +19,12 @@
 #define SPI_Radio 10		  // Radio CSN pin
 #define CE_PIN 9
 #define DS18B20_PIN 2 // Dataline is plugged into digital pin 2
+int ADXL345 = 0x1D;	  // Adress for DRFduino
 
 RF24 radio(CE_PIN, SPI_Radio);		 // CE, CSN
 OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
 DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemperature
+Adafruit_LIS2MDL mag = Adafruit_LIS2MDL();
 
 // Some good definition
 #define uint8 uint8_t
@@ -49,6 +53,8 @@ struct Measurement_struct
 
 	int distance = 0; // Stored as 0.1 cm
 	float temp = 0;
+	float accelerometer_X, accelerometer_Y, accelerometer_Z;
+	float calX, calY, calZ;
 };
 struct Data_struct
 {
@@ -66,12 +72,14 @@ Data_struct Data;
 void My_Radio();
 void Measurement_DHT();
 void Measurement_Ultrasonic();
+void Measurement_accelerometer();
 
 //  Decleration of initialization functions
 void Init_Radio();
 void Init_CanSat();
 void Init_Ultrasonic();
 void Init_dht();
+void Init_accelerometer();
 
 uint8 measurement_size()
 {
@@ -174,6 +182,74 @@ void Measurement_Ultrasonic()
 		// distance = 200;
 	}
 	Measurement.distance = distance;
+}
+void Measurement_accelerometer()
+{
+	float X_out, Y_out, Z_out; // Outputs
+	// === Read acceleromter data === //
+	Wire.beginTransmission(ADXL345);
+	Wire.write(0x32); // Start with register 0x32 (ACCEL_XOUT_H)
+	Wire.endTransmission(false);
+	Wire.requestFrom(ADXL345, 6, true);		  // Read 6 registers total, each axis value is stored in 2 registers
+	X_out = (Wire.read() | Wire.read() << 8); // X-axis value
+	X_out = X_out / 256;					  // For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
+	Y_out = (Wire.read() | Wire.read() << 8); // Y-axis value
+	Y_out = Y_out / 256;
+	Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
+	Z_out = Z_out / 256;
+
+	Measurement.accelerometer_X = X_out;
+	Measurement.accelerometer_Y = Y_out;
+	Measurement.accelerometer_Z = Z_out;
+
+	Serial.print("Xa= ");
+	Serial.print(X_out);
+	Serial.print("   Ya= ");
+	Serial.print(Y_out);
+	Serial.print("   Za= ");
+	Serial.println(Z_out);
+	delay(1000);
+}
+void Measurement_Hall_Effect()
+{
+	sensors_event_t event;
+	mag.getEvent(&event);
+	float minX = -50.0, maxX = 50.0;
+	float minY = -50.0, maxY = 50.0;
+	float minZ = -50.0, maxZ = 50.0;
+
+	// Raw readings in microteslas (µT)
+	float rawX = event.magnetic.x;
+	float rawY = event.magnetic.y;
+	float rawZ = event.magnetic.z;
+
+	// Simple hard iron offset calibration
+	float offsetX = (maxX + minX) / 2;
+	float offsetY = (maxY + minY) / 2;
+	float offsetZ = (maxZ + minZ) / 2;
+
+	Measurement.calX = rawX - offsetX;
+	Measurement.calY = rawY - offsetY;
+	Measurement.calZ = rawZ - offsetZ;
+
+	// Output raw and calibrated data
+	Serial.print("Raw: ");
+	Serial.print(rawX, 2);
+	Serial.print(", ");
+	Serial.print(rawY, 2);
+	Serial.print(", ");
+	Serial.print(rawZ, 2);
+	Serial.print(" µT  |  ");
+
+	Serial.print("Calibrated: ");
+	Serial.print(Measurement.calX, 2);
+	Serial.print(", ");
+	Serial.print(Measurement.calY, 2);
+	Serial.print(", ");
+	Serial.print(Measurement.calZ, 2);
+	Serial.println(" µT");
+
+	delay(2); // Sample rate: 500 Hz
 }
 
 void Init_Radio()
