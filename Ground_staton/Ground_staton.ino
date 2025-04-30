@@ -1,30 +1,30 @@
+// C code for nRF24L01 Receiver
+// Shahab Fatemi (Jan 2023)
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <DHT.h>
+#include <DHT.h> // Required header
 
-// Include the libraries for the OLED display
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-
 
 #define PIN_DHT 2 // DHT data pin
 RF24 radio(9, 8); // CE, CSN
 
 #define DHTType DHT11 // Specify the type of DHT
 
-// OLED config
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 32
-#define OLED_RESET -1
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
 // Some good definition
 #define uint8 uint8_t
 #define int8 int8_t
 #define uint16 uint16_t
 #define int16 int16_t
+
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
+#define OLED_RESET     -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Address through which Rx/Tx modules communicate.
 byte address[6] = "Canst";
@@ -35,9 +35,12 @@ struct Measurement_struct
 {
 	// add your Measurement data here
 	// For example:
-	int distance = 0;
+	int distance = 0; // Stored as 0.1 cm
 	float temp = 0;
+	float accelerometer_X, accelerometer_Y, accelerometer_Z;
+	float calX, calY, calZ;
 };
+Measurement_struct Measurement;
 
 struct Ground_struct
 {
@@ -46,14 +49,15 @@ struct Ground_struct
 	float humidity = 0;
 	float temperature = 0;
 };
-
-void Init_dht();
-
-Measurement_struct Measurement;
 Ground_struct Ground;
+
+void Init_dht()
+{
+	dht.begin(); // first_entry the sensor (wiring)
+}
+
 void setup()
 {
-	Init_dht();
 	while (!Serial)
 		;
 	Serial.begin(9600);
@@ -68,6 +72,21 @@ void setup()
 	//  we have the chanels 21-30 and 81-90
 	radio.startListening();
 	// radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
+
+  // Initialize the display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;); // Stop if display init fails
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);             // Normal 1:1 pixel scale
+  display.setTextColor(SSD1306_WHITE); // Draw white text
+  display.setCursor(0, 10);            // Position (x, y)
+  display.print("Hello OLED!");
+  display.display();
+
+  Init_dht();
 }
 
 void loop()
@@ -75,71 +94,26 @@ void loop()
 	// Read the data if available in buffer
 	if (radio.available())
 	{
-		Measurement_struct Measurement;
 		radio.read(&Measurement, sizeof(Measurement));
-
-		Serial.print("Recieved data: \n");
 
 		Serial.print(Measurement.distance);
 		Serial.print("mm\t");
 		Serial.print(Measurement.temp);
 		Serial.print("C\t");
 		Serial.print("\n");
-
-		updateDisplayIfNeeded();
+    delay(100);
 	}
 	else
 	{
-		// Measurement_DHT();
-		// Serial.print("No radio\n");
-		// delay(500);
-	}
-	Measurement_DHT();
-	delay(500);
-}
-
-void Init_dht()
-{
-	dht.begin(); // first_entry the sensor (wiring)
-}
-
-void Init_display() {
-	if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-		while (true); // hang on failure
-	}
-	display.clearDisplay();
-	display.setTextSize(1);
-	display.setTextColor(SSD1306_WHITE);
-	display.setCursor(0, 0);
-	display.println("Waiting...");
-	display.display();
-}
-
-void updateDisplayIfNeeded() {
-	static unsigned long lastUpdate = 0;
-	if (millis() - lastUpdate >= 1000) {
-		lastUpdate = millis();
-		packetsPerSecond = packetCount;
-		packetCount = 0;
-
-		display.clearDisplay();
-		display.setCursor(0, 0);
-		display.print("Packets/s: ");
-		display.println(packetsPerSecond);
-		display.setCursor(0, 16);
-		display.print("Temp: ");
-		display.print(Ground.temperature);
-		display.print(" C");
-		display.display();
+		Measurement_DHT();
+		Serial.print("No radio\n");
+		delay(50);
 	}
 }
 
 void Measurement_DHT()
 {
-	// Ground.temperature  = dht.readTemperature();  // Reading temperature
-
-	Ground.humidity = dht.readHumidity(); // Reading humidity
-
+  Ground.humidity = dht.readHumidity();
 	Ground.temperature = dht.readTemperature();
 	if (isnan(Ground.temperature) || isnan(Ground.humidity))
 	{
@@ -147,7 +121,6 @@ void Measurement_DHT()
 		delay(1000);
 		return; // Do not continue the rest of the loop and rewind!
 	}
-
 	// Print out values
 	Serial.print("Temperature: ");
 	Serial.print(Ground.temperature);
