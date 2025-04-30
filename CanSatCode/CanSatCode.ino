@@ -73,7 +73,7 @@ void Init_CanSat();
 void Init_Ultrasonic();
 void Init_dht();
 
-uint8 Meassurment_size()
+uint8 measurement_size()
 {
 	uint8 size = sizeof(Measurement_struct);
 	return size;
@@ -97,15 +97,16 @@ void Data_first_delete()
 	Data.first_entry = (Data.first_entry + size) % STORAGE_SIZE;
 }
 
-void Move_meassurment_to_data()
+void Move_measurement_to_data()
 {
-	// Move all the meassurments from the Meassurment struct to last entris in data
+	// Move all the measurements from the measurement struct to last entris in data
 	uint16 size = sizeof(Measurement);
 
 	// pointer to measurment values
-	uint16 *Measurment_ptr = (uint16 *)&Measurement;
+	byte *Measurment_ptr = (byte *)&Measurement;
 
 	// Coppy evrything in measurment struct to data struct byte by byte
+	// % STORAGE_SIZE is to loop around the memory so we do not wrtite outsize of our array
 	for (uint16 i = 0; i < size; i++)
 	{
 		Data.data[(i + Data.end_entry) % STORAGE_SIZE] = Measurment_ptr[i];
@@ -141,7 +142,7 @@ void loop()
 	Serial.print("\n");
 
 	// Move the Measurement to Data
-	Move_meassurment_to_data();
+	Move_measurement_to_data();
 
 	// Radio over the data from Data
 	My_Radio();
@@ -209,8 +210,8 @@ void My_Radio()
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
-	// radio.write(&(Data.data[Data.first_entry]), size);
-	radio.write(&(Measurement), sizeof(Measurement_struct));
+	radio.write(&(Data.data[Data.first_entry]), size);
+	// radio.write(&(Measurement), sizeof(Measurement_struct));
 
 	// We need to check if the message got recived
 	// end if it did, delete the entry, but for now we assume it worked
