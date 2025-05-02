@@ -9,6 +9,8 @@
 #include <DallasTemperature.h> // Required header
 #include <Wire.h>			   // Wire library - used for I2C communication
 #include <Adafruit_LIS2MDL.h>
+#include <Adafruit_Sensor.h>
+
 
 // Defins the data storage size in bytes
 #define STORAGE_SIZE 50
@@ -26,12 +28,20 @@ OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
 DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemperature
 Adafruit_LIS2MDL mag = Adafruit_LIS2MDL();
 
+
 // Some good definition
 #define uint8 uint8_t
 #define int8 int8_t
 #define uint16 uint16_t
 #define int16 int16_t
 const byte address[6] = "Canst";
+
+// For LIS2MDL
+float sumX = 0, sumY = 0, sumZ = 0;
+unsigned int sampleCount = 0;
+unsigned long lastPrintTime = 0;
+
+
 
 // wtf dose this macro?!?!
 // #define runEvery(t) for (static typeof(t) _lasttime; (typeof(t))((typeof(t))millis() - _lasttime) > (t); _lasttime += (t))
@@ -55,6 +65,7 @@ struct Measurement_struct
 	float temp = 0;
   float accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
   float calX = 0, calY = 0, calZ = 0;
+
 };
 struct Data_struct
 {
@@ -74,6 +85,7 @@ void Measurement_DHT();
 void Measurement_Ultrasonic();
 void Measurement_accelerometer();
 void Measurement_hall_effect();
+
 
 //  Decleration of initialization functions
 void Init_Radio();
@@ -126,28 +138,26 @@ void Move_meassurment_to_data()
 }
 void setup()
 {
-
 	Serial.begin(9600);
+  Wire.begin();
 
 	// Initialization function
 	Init_CanSat(); // Dose nothing right now
 	Init_Radio();
 	Init_Ultrasonic();
 	Init_DS18B20();
-  Serial.print("Hello\n");
   Init_accelerometer(); //This function crashes
-  //Init_hall_effect();
+  Init_hall_effect();
 }
 
 void loop()
 {
-
 	// Take the measurement
-	// Measurement_DHT();
 	Measurement_Ultrasonic();
 	Measurement_DS18B20();
-  //Measurement_accelerometer();
-  //Measurement_hall_effect();
+  Measurement_accelerometer();
+  Measurement_hall_effect();
+
 
 	Serial.print("distance\t");
 	Serial.print(Measurement.distance);
@@ -161,6 +171,13 @@ void loop()
 	Serial.print(Measurement.accelerometer_Y);
 	Serial.print("   Za= ");
 	Serial.println(Measurement.accelerometer_Z);
+
+  Serial.print("Xmag= ");
+	Serial.print(Measurement.calX);
+	Serial.print("   Ymag= ");
+	Serial.print(Measurement.calY);
+	Serial.print("   Zmag= ");
+	Serial.println(Measurement.calZ);
 
 
 	// Move the Measurement to Data
@@ -197,74 +214,6 @@ void Measurement_Ultrasonic()
 	}
 	Measurement.distance = distance;
 }
-void Measurement_accelerometer()
-{
-	float X_out, Y_out, Z_out; // Outputs
-	// === Read acceleromter data === //
-	Wire.beginTransmission(ADXL345);
-	Wire.write(0x32); // Start with register 0x32 (ACCEL_XOUT_H)
-	Wire.endTransmission(false);
-	Wire.requestFrom(ADXL345, 6, true);		  // Read 6 registers total, each axis value is stored in 2 registers
-	X_out = (Wire.read() | Wire.read() << 8); // X-axis value
-	X_out = X_out / 256;					  // For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
-	Y_out = (Wire.read() | Wire.read() << 8); // Y-axis value
-	Y_out = Y_out / 256;
-	Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
-	Z_out = Z_out / 256;
-
-	Measurement.accelerometer_X = X_out;
-	Measurement.accelerometer_Y = Y_out;
-	Measurement.accelerometer_Z = Z_out;
-
-	Serial.print("Xa= ");
-	Serial.print(X_out);
-	Serial.print("   Ya= ");
-	Serial.print(Y_out);
-	Serial.print("   Za= ");
-	Serial.println(Z_out);
-	delay(1000);
-}
-void Measurement_Hall_Effect()
-{
-	sensors_event_t event;
-	mag.getEvent(&event);
-	float minX = -50.0, maxX = 50.0;
-	float minY = -50.0, maxY = 50.0;
-	float minZ = -50.0, maxZ = 50.0;
-
-	// Raw readings in microteslas (µT)
-	float rawX = event.magnetic.x;
-	float rawY = event.magnetic.y;
-	float rawZ = event.magnetic.z;
-
-	// Simple hard iron offset calibration
-	float offsetX = (maxX + minX) / 2;
-	float offsetY = (maxY + minY) / 2;
-	float offsetZ = (maxZ + minZ) / 2;
-
-	Measurement.calX = rawX - offsetX;
-	Measurement.calY = rawY - offsetY;
-	Measurement.calZ = rawZ - offsetZ;
-
-	// Output raw and calibrated data
-	Serial.print("Raw: ");
-	Serial.print(rawX, 2);
-	Serial.print(", ");
-	Serial.print(rawY, 2);
-	Serial.print(", ");
-	Serial.print(rawZ, 2);
-	Serial.print(" µT  |  ");
-
-	Serial.print("Calibrated: ");
-	Serial.print(Measurement.calX, 2);
-	Serial.print(", ");
-	Serial.print(Measurement.calY, 2);
-	Serial.print(", ");
-	Serial.print(Measurement.calZ, 2);
-	Serial.println(" µT");
-
-	delay(2); // Sample rate: 500 Hz
-}
 
 void Init_Radio()
 {
@@ -273,9 +222,9 @@ void Init_Radio()
 	// radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	// radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
-
+  //radio.setChannel(21); // set the channel to 21
 	radio.openWritingPipe(address);
-	// radio.setChannel(21); // set the channel to 21
+	
 	//  we have teh chanels 21-30 and 81-90
 
 	// radio.setPALevel(RF24_PA_HIGH); // Change this to RF24_PA_HIGH when we want high power
@@ -298,18 +247,29 @@ void Init_CanSat()
 }
 
 void Init_accelerometer(){ //This function crashes
-  /*Wire.beginTransmission(ADXL345); // Start communicating with the device 
+  Wire.beginTransmission(ADXL345); // Start communicating with the device 
   Wire.write(0x2D); // Access/ talk to POWER_CTL Register - 0x2D
   // Enable measurement
   Wire.write(8); // (8dec -> 0000 1000 binary) Bit D3 High for measuring enable 
-  Wire.endTransmission();*/
+  Wire.endTransmission();
 }
 
 void Init_hall_effect(){
-    if (!mag.begin()) {
+
+  Serial.println("Scanning I2C bus...");
+  for (byte addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.print("Found device at 0x");
+      Serial.println(addr,HEX);
+    }
+  }
+  
+  if (!mag.begin()) {
     Serial.println("LIS2MDL not found. Check wiring.");
     while (1);
   }
+  
 }
 
 void Measurement_accelerometer()
@@ -331,57 +291,53 @@ void Measurement_accelerometer()
 	Measurement.accelerometer_Y = Y_out;
 	Measurement.accelerometer_Z = Z_out;
 
-	Serial.print("Xa= ");
-	Serial.print(X_out);
-	Serial.print("   Ya= ");
-	Serial.print(Y_out);
-	Serial.print("   Za= ");
-	Serial.println(Z_out);
-
 }
 
 void Measurement_hall_effect()
 {
+  
 	sensors_event_t event;
-	mag.getEvent(&event);
-	float minX = -50.0, maxX = 50.0;
-	float minY = -50.0, maxY = 50.0;
-	float minZ = -50.0, maxZ = 50.0;
+  mag.getEvent(&event);
+  Serial.print("Hello \n");
 
-	// Raw readings in microteslas (µT)
-	float rawX = event.magnetic.x;
-	float rawY = event.magnetic.y;
-	float rawZ = event.magnetic.z;
+  // Raw readings in microteslas (µT)
+  float rawX = event.magnetic.x;
+  float rawY = event.magnetic.y;
+  float rawZ = event.magnetic.z;
 
-	// Simple hard iron offset calibration
-	float offsetX = (maxX + minX) / 2;
-	float offsetY = (maxY + minY) / 2;
-	float offsetZ = (maxZ + minZ) / 2;
+  // Simple hard iron offset calibration
+ 
+  Measurement.calX = rawX;
+  Measurement.calY = rawY;
+  Measurement.calZ = rawZ;
 
-	Measurement.calX = rawX - offsetX;
-	Measurement.calY = rawY - offsetY;
-	Measurement.calZ = rawZ - offsetZ;
+  /*
+   // Accumulate values
+  sumX += Measurement.calX;
+  sumY += Measurement.calY;
+  sumZ += Measurement.calZ;
+  sampleCount++;
+  */
 
-	// Output raw and calibrated data
-	Serial.print("Raw: ");
-	Serial.print(rawX, 2);
-	Serial.print(", ");
-	Serial.print(rawY, 2);
-	Serial.print(", ");
-	Serial.print(rawZ, 2);
-	Serial.print(" µT  |  ");
+  /*
+  // Every 1000 ms: calculate and print average
+  if (millis() - lastPrintTime >= 1000) {
+    float avgX = sumX / sampleCount;
+    float avgY = sumY / sampleCount;
+    float avgZ = sumZ / sampleCount;
 
-	Serial.print("Calibrated: ");
-	Serial.print(Measurement.calX, 2);
-	Serial.print(", ");
-	Serial.print(Measurement.calY, 2);
-	Serial.print(", ");
-	Serial.print(Measurement.calZ, 2);
-	Serial.println(" µT");
+    Serial.print("Average Calibrated: ");
+    Serial.print(avgX, 2); Serial.print(", ");
+    Serial.print(avgY, 2); Serial.print(", ");
+    Serial.print(avgZ, 2); Serial.println(" µT");
 
-	delay(2); // Sample rate: 500 Hz
+    // Reset for next second
+    sumX = sumY = sumZ = 0;
+    sampleCount = 0;
+    lastPrintTime = millis();
+  }
+  */
 }
-
 
 void My_Radio()
 {
