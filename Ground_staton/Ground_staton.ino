@@ -1,5 +1,5 @@
 // C code for nRF24L01 Receiver
-// Shahab Fatemi (Jan 2023)
+// Used in the Ground station
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
