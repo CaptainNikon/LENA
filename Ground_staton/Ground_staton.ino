@@ -24,6 +24,9 @@ RF24 radio(9, 8); // CE, CSN
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 #define OLED_RESET     -1
+int dispupdate = 0;
+unsigned long lastDisplayTime = 0;
+const unsigned long displayInterval = 1000; // ms
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Address through which Rx/Tx modules communicate.
@@ -38,7 +41,7 @@ struct Measurement_struct
 	int distance = 0; // Stored as 0.1 cm
 	float temp = 0;
 	float accelerometer_X, accelerometer_Y, accelerometer_Z;
-	float calX, calY, calZ;
+	float magX, magY, magZ;
 };
 Measurement_struct Measurement;
 
@@ -56,6 +59,16 @@ void Init_dht()
 	dht.begin(); // first_entry the sensor (wiring)
 }
 
+void Init_display() {
+	display.clearDisplay();
+  display.setTextSize(1);             // Normal 1:1 pixel scale
+  display.setTextColor(SSD1306_WHITE); // Draw white text
+  display.setCursor(0, 10);            // Position (x, y)
+  display.print("Starting...");
+  display.display();
+	delay(1000);
+}
+
 void setup()
 {
 	while (!Serial)
@@ -66,9 +79,9 @@ void setup()
 	// radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
-
+	//radio.setChannel(21);
 	radio.openReadingPipe(0, address);
-	// radio.setChannel(21); // set the channel to 21
+	 // set the channel to 21
 	//  we have the chanels 21-30 and 81-90
 	radio.startListening();
 	// radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
@@ -79,13 +92,7 @@ void setup()
     for (;;); // Stop if display init fails
   }
 
-  display.clearDisplay();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(SSD1306_WHITE); // Draw white text
-  display.setCursor(0, 10);            // Position (x, y)
-  display.print("Hello OLED!");
-  display.display();
-
+	Init_display();
   Init_dht();
 }
 
@@ -95,21 +102,51 @@ void loop()
 	if (radio.available())
 	{
 		radio.read(&Measurement, sizeof(Measurement));
-
 		Serial.print(Measurement.distance);
 		Serial.print("mm\t");
 		Serial.print(Measurement.temp);
 		Serial.print("C\t");
+		Serial.print("\n");
+		Serial.print(Measurement.accelerometer_X);Serial.print("\t");
+		Serial.print(Measurement.accelerometer_Y);Serial.print("\t");
+		Serial.print(Measurement.accelerometer_Z);Serial.print("\t");
+		Serial.print("\n");
+		Serial.print(Measurement.magX);Serial.print("\t");
+		Serial.print(Measurement.magY);Serial.print("\t");
+		Serial.print(Measurement.magZ);Serial.print("\t");
 		Serial.print("\n");
     delay(100);
 	}
 	else
 	{
 		Measurement_DHT();
-		Serial.print("No radio\n");
-		delay(50);
+		if (millis() - lastDisplayTime >= displayInterval) 
+		{
+    lastDisplayTime = millis();
+    display_dht();
+		}
 	}
 }
+
+void display_dht() {
+	int precision = 3;
+  char tempStr[precision+1];
+  char humStr[precision+1];
+
+  // Convert float to string: (value, width, precision, name)
+  dtostrf(Ground.temperature, precision, 0, tempStr);
+  dtostrf(Ground.humidity,    precision, 0, humStr);
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+
+  display.print("T:"); display.print(tempStr); display.print("C|Hum:"); display.print(humStr); display.print("%"); display.print("No:"); 
+	display.println(dispupdate++);
+  display.display();
+}
+
 
 void Measurement_DHT()
 {
@@ -121,10 +158,4 @@ void Measurement_DHT()
 		delay(1000);
 		return; // Do not continue the rest of the loop and rewind!
 	}
-	// Print out values
-	Serial.print("Temperature: ");
-	Serial.print(Ground.temperature);
-	Serial.print("°C   Humidity: ");
-	Serial.print(Ground.humidity);
-	Serial.println("%");
 }
