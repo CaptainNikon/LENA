@@ -1,18 +1,16 @@
-// C code for nRF24L01 Receiver
+// C code for LENA CanSat Receiver
 // Used in the Ground station
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <DHT.h> // Required header
-
+#include <DHT.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define PIN_DHT 2 // DHT data pin
+// Radio Setup
 RF24 radio(9, 8); // CE, CSN
-
-#define DHTType DHT11 // Specify the type of DHT
+byte address[6] = "Canst";
 
 // Some good definition
 #define uint8 uint8_t
@@ -20,7 +18,12 @@ RF24 radio(9, 8); // CE, CSN
 #define uint16 uint16_t
 #define int16 int16_t
 
+// DHT variables
+#define PIN_DHT 2 // DHT data pin
+#define DHTType DHT11 // Specify the type of DHT
+DHT dht = DHT(PIN_DHT, DHTType);
 
+// Screen Setup
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 #define OLED_RESET     -1
@@ -29,34 +32,30 @@ unsigned long lastDisplayTime = 0;
 const unsigned long displayInterval = 1000; // ms
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-// Address through which Rx/Tx modules communicate.
-byte address[6] = "Canst";
 
-DHT dht = DHT(PIN_DHT, DHTType); // instance of DHT class
-
+// Setup the data structures for ground and CanSat
 struct Measurement_struct
 {
-	// add your Measurement data here
-	// For example:
-	int distance = 0; // Stored as 0.1 cm
-	float temp = 0;
-	float accelerometer_X, accelerometer_Y, accelerometer_Z;
-	float magX, magY, magZ;
+	uint16_t distance = 0; 	// [mm]
+	uint16_t temp = 0; 		// *100 [°C]
+	int16_t accelerometer_X, accelerometer_Y, accelerometer_Z; // [g] ?
+	float magX, magY, magZ; // ? 
 };
-Measurement_struct Measurement;
 
 struct Ground_struct
 {
-	// add your Measurement data here
-	// For example:
 	float humidity = 0;
 	float temperature = 0;
 };
+
+Measurement_struct Measurement;
 Ground_struct Ground;
 
+
+// Initialization functions
 void Init_dht()
 {
-	dht.begin(); // first_entry the sensor (wiring)
+	dht.begin();
 }
 
 void Init_display() {
@@ -66,25 +65,24 @@ void Init_display() {
   display.setCursor(0, 10);            // Position (x, y)
   display.print("Starting...");
   display.display();
-	delay(1000);
+	delay(100);
 }
 
 void setup()
 {
 	while (!Serial)
 		;
-	Serial.begin(9600);
+	Serial.begin(115200);
 	radio.begin();
-
-	// radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s
-	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	//radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
-	//radio.setChannel(21);
+	radio.setChannel(21);
+	radio.setAutoAck(1);
+	//radio.setPALevel(RF24_PA_LOW);
+	radio.setDataRate(RF24_250KBPS);
 	radio.openReadingPipe(0, address);
-	 // set the channel to 21
 	//  we have the chanels 21-30 and 81-90
 	radio.startListening();
-	// radio.setPALevel(RF24_PA_MIN); // Change this to RF24_PA_HIGH when we want high power
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
@@ -95,40 +93,41 @@ void setup()
 	Init_display();
   Init_dht();
 }
-
+int count = 0;
 void loop()
 {
 	// Read the data if available in buffer
 	if (radio.available())
 	{
+		//Serial.print(count++);
+		//Serial.print("\n");
 		radio.read(&Measurement, sizeof(Measurement));
 		Serial.print(Measurement.distance);
 		Serial.print("mm\t");
 		Serial.print(Measurement.temp);
 		Serial.print("C\t");
 		Serial.print("\n");
-		Serial.print(Measurement.accelerometer_X);Serial.print("\t");
-		Serial.print(Measurement.accelerometer_Y);Serial.print("\t");
-		Serial.print(Measurement.accelerometer_Z);Serial.print("\t");
+		Serial.print(float(Measurement.accelerometer_X)* 0.015748);Serial.print("\t");
+		Serial.print(float(Measurement.accelerometer_Y)* 0.015748);Serial.print("\t");
+		Serial.print(float(Measurement.accelerometer_Z)* 0.015748);Serial.print("\t");
 		Serial.print("\n");
 		Serial.print(Measurement.magX);Serial.print("\t");
 		Serial.print(Measurement.magY);Serial.print("\t");
 		Serial.print(Measurement.magZ);Serial.print("\t");
 		Serial.print("\n");
-    delay(100);
 	}
 	else
 	{
-		Measurement_DHT();
-		if (millis() - lastDisplayTime >= displayInterval) 
-		{
-    lastDisplayTime = millis();
-    display_dht();
-		}
+		//Measurement_DHT();
+		//if (millis() - lastDisplayTime >= displayInterval) 
+		//{
+    //lastDisplayTime = millis();
+    //display_ground();
+		//}
 	}
 }
 
-void display_dht() {
+void display_ground() {
 	int precision = 3;
   char tempStr[precision+1];
   char humStr[precision+1];
