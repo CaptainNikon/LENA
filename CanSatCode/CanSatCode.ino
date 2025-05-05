@@ -141,6 +141,29 @@ void setup()
 	Init_hall_effect();
 }
 
+void print_values(){
+    Serial.print("=========== new ===========\n");
+  Serial.print("distance\t");
+  Serial.print(Measurement.distance);
+  Serial.print("   temp\t");
+  Serial.print(Measurement.temp);
+  Serial.print("\n");
+
+  Serial.print("Xa= ");
+  Serial.print(Measurement.accelerometer_X);
+  Serial.print("   Ya= ");
+  Serial.print(Measurement.accelerometer_Y);
+  Serial.print("   Za= ");
+  Serial.println(Measurement.accelerometer_Z);
+
+  Serial.print("Xmag= ");
+  Serial.print(Measurement.calX);
+  Serial.print("   Ymag= ");
+  Serial.print(Measurement.calY);
+  Serial.print("   Zmag= ");
+  Serial.println(Measurement.calZ);
+}
+
 void loop()
 {
 	// Take the measurement
@@ -149,26 +172,7 @@ void loop()
 	Measurement_accelerometer();
 	Measurement_hall_effect();
   
-  Serial.print("=========== new ===========\n");
-	Serial.print("distance\t");
-	Serial.print(Measurement.distance);
-	Serial.print("   temp\t");
-	Serial.print(Measurement.temp);
-	Serial.print("\n");
-
-	Serial.print("Xa= ");
-	Serial.print(Measurement.accelerometer_X);
-	Serial.print("   Ya= ");
-	Serial.print(Measurement.accelerometer_Y);
-	Serial.print("   Za= ");
-	Serial.println(Measurement.accelerometer_Z);
-
-	Serial.print("Xmag= ");
-	Serial.print(Measurement.calX);
-	Serial.print("   Ymag= ");
-	Serial.print(Measurement.calY);
-	Serial.print("   Zmag= ");
-	Serial.println(Measurement.calZ);
+  print_values();
 
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
@@ -287,7 +291,7 @@ void Measurement_accelerometer()
 	Z_out = Z_out / 256;
   */
   int16 X_out, Y_out, Z_out; // Outputs
-  // Reading the values, and mapping them to int8
+  // Reading the values, and 10 bit to int8
   X_out = (Wire.read() | Wire.read() << 8) >> 2; // X-axis value
   Y_out = (Wire.read() | Wire.read() << 8) >> 2; // Y-axis value
   Z_out = (Wire.read() | Wire.read() << 8) >> 2; // Z-axis value
