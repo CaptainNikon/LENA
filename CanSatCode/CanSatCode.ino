@@ -179,31 +179,7 @@ void loop()
 	//delay(300);
 }
 
-void Measurement_DS18B20()
-{
-	sensors.requestTemperatures(); // send request to device to get temperature
-	Measurement.temp = sensors.getTempCByIndex(0)*10; // switch to bit manipulation aka, << n
-}
-void Measurement_Ultrasonic()
-{
-	// Clears the PIN_Ultrasonic_trig
-	digitalWrite(PIN_Ultrasonic_trig, LOW);
-	delayMicroseconds(2);
-	// Sets the PIN_Ultrasonic_trig on HIGH state for 10 micro seconds
-	digitalWrite(PIN_Ultrasonic_trig, HIGH);
-	delayMicroseconds(10);
-	digitalWrite(PIN_Ultrasonic_trig, LOW);
-	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
-	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
-	// Calculating the distance
-	uint16 distance = duration * 0.034 * 10 / 2.;
 
-	if (distance > 200.0)
-	{
-		// distance = 200;
-	}
-	Measurement.distance = distance;
-}
 
 void Init_Radio()
 {
@@ -264,9 +240,34 @@ void Init_hall_effect()
 	if (!mag.begin())
 	{
 		Serial.println("LIS2MDL not found. Check wiring.");
-		while (1)
-			;
+		while (1);
 	}
+}
+
+void Measurement_DS18B20()
+{
+  sensors.requestTemperatures(); // send request to device to get temperature
+  Measurement.temp = sensors.getTempCByIndex(0)*10; // switch to bit manipulation aka, << n
+}
+void Measurement_Ultrasonic()
+{
+  // Clears the PIN_Ultrasonic_trig
+  digitalWrite(PIN_Ultrasonic_trig, LOW);
+  delayMicroseconds(2);
+  // Sets the PIN_Ultrasonic_trig on HIGH state for 10 micro seconds
+  digitalWrite(PIN_Ultrasonic_trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(PIN_Ultrasonic_trig, LOW);
+  // Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
+  uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
+  // Calculating the distance
+  uint16 distance = duration * 0.034 * 10 / 2.;
+
+  if (distance > 200.0)
+  {
+    // distance = 200;
+  }
+  Measurement.distance = distance;
 }
 
 void Measurement_accelerometer()
@@ -286,6 +287,7 @@ void Measurement_accelerometer()
 	Z_out = Z_out / 256;
   */
   int16 X_out, Y_out, Z_out; // Outputs
+  // Reading the values, and mapping them to int8
   X_out = (Wire.read() | Wire.read() << 8) >> 2; // X-axis value
   Y_out = (Wire.read() | Wire.read() << 8) >> 2; // Y-axis value
   Z_out = (Wire.read() | Wire.read() << 8) >> 2; // Z-axis value
