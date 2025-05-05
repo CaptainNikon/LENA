@@ -141,27 +141,28 @@ void setup()
 	Init_hall_effect();
 }
 
-void print_values(){
-    Serial.print("=========== new ===========\n");
-  Serial.print("distance\t");
-  Serial.print(Measurement.distance);
-  Serial.print("   temp\t");
-  Serial.print(Measurement.temp);
-  Serial.print("\n");
+void print_values()
+{
+	Serial.print("=========== new ===========\n");
+	Serial.print("distance\t");
+	Serial.print(Measurement.distance);
+	Serial.print("   temp\t");
+	Serial.print(Measurement.temp);
+	Serial.print("\n");
 
-  Serial.print("Xa= ");
-  Serial.print(Measurement.accelerometer_X);
-  Serial.print("   Ya= ");
-  Serial.print(Measurement.accelerometer_Y);
-  Serial.print("   Za= ");
-  Serial.println(Measurement.accelerometer_Z);
+	Serial.print("Xa= ");
+	Serial.print(Measurement.accelerometer_X);
+	Serial.print("   Ya= ");
+	Serial.print(Measurement.accelerometer_Y);
+	Serial.print("   Za= ");
+	Serial.println(Measurement.accelerometer_Z);
 
-  Serial.print("Xmag= ");
-  Serial.print(Measurement.calX);
-  Serial.print("   Ymag= ");
-  Serial.print(Measurement.calY);
-  Serial.print("   Zmag= ");
-  Serial.println(Measurement.calZ);
+	Serial.print("Xmag= ");
+	Serial.print(Measurement.calX);
+	Serial.print("   Ymag= ");
+	Serial.print(Measurement.calY);
+	Serial.print("   Zmag= ");
+	Serial.println(Measurement.calZ);
 }
 
 void loop()
@@ -171,8 +172,8 @@ void loop()
 	Measurement_DS18B20();
 	Measurement_accelerometer();
 	Measurement_hall_effect();
-  
-  print_values();
+
+	print_values();
 
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
@@ -180,22 +181,20 @@ void loop()
 	// Radio over the data from Data
 	My_Radio();
 
-	//delay(300);
+	// delay(300);
 }
-
-
 
 void Init_Radio()
 {
 	radio.begin();
 
 	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s, RF24_250KBPS
-	//radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
-	// radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
+	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21); // set the channel to 21
 	radio.openWritingPipe(address);
-  radio.setAutoAck(1);
-  radio.setRetries(1, 15);
+	radio.setAutoAck(1);
+	radio.setRetries(1, 15);
 
 	//  we have teh chanels 21-30 and 81-90
 
@@ -244,34 +243,35 @@ void Init_hall_effect()
 	if (!mag.begin())
 	{
 		Serial.println("LIS2MDL not found. Check wiring.");
-		while (1);
+		while (1)
+			;
 	}
 }
 
 void Measurement_DS18B20()
 {
-  sensors.requestTemperatures(); // send request to device to get temperature
-  Measurement.temp = sensors.getTempCByIndex(0)*10; // switch to bit manipulation aka, << n
+	sensors.requestTemperatures();						// send request to device to get temperature
+	Measurement.temp = sensors.getTempCByIndex(0) * 10; // switch to bit manipulation aka, << n
 }
 void Measurement_Ultrasonic()
 {
-  // Clears the PIN_Ultrasonic_trig
-  digitalWrite(PIN_Ultrasonic_trig, LOW);
-  delayMicroseconds(2);
-  // Sets the PIN_Ultrasonic_trig on HIGH state for 10 micro seconds
-  digitalWrite(PIN_Ultrasonic_trig, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(PIN_Ultrasonic_trig, LOW);
-  // Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
-  uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
-  // Calculating the distance
-  uint16 distance = duration * 0.034 * 10 / 2.;
+	// Clears the PIN_Ultrasonic_trig
+	digitalWrite(PIN_Ultrasonic_trig, LOW);
+	delayMicroseconds(2);
+	// Sets the PIN_Ultrasonic_trig on HIGH state for 10 micro seconds
+	digitalWrite(PIN_Ultrasonic_trig, HIGH);
+	delayMicroseconds(10);
+	digitalWrite(PIN_Ultrasonic_trig, LOW);
+	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
+	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
+	// Calculating the distance
+	uint16 distance = duration * 0.034 * 10 / 2.;
 
-  if (distance > 200.0)
-  {
-    // distance = 200;
-  }
-  Measurement.distance = distance;
+	if (distance > 200.0)
+	{
+		// distance = 200;
+	}
+	Measurement.distance = distance;
 }
 
 void Measurement_accelerometer()
@@ -280,21 +280,21 @@ void Measurement_accelerometer()
 	Wire.beginTransmission(ADXL345);
 	Wire.write(0x32); // Start with register 0x32 (ACCEL_XOUT_H)
 	Wire.endTransmission(false);
-	Wire.requestFrom(ADXL345, 6, true);		  // Read 6 registers total, each axis value is stored in 2 registers
-	/*
-  float X_out, Y_out, Z_out; // Outputs
-	X_out = (Wire.read() | Wire.read() << 8); // X-axis value
-	X_out = X_out / 256;					  // For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
-	Y_out = (Wire.read() | Wire.read() << 8); // Y-axis value
-	Y_out = Y_out / 256;
-	Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
-	Z_out = Z_out / 256;
-  */
-  int16 X_out, Y_out, Z_out; // Outputs
-  // Reading the values, and 10 bit to int8
-  X_out = (Wire.read() | Wire.read() << 8) >> 2; // X-axis value
-  Y_out = (Wire.read() | Wire.read() << 8) >> 2; // Y-axis value
-  Z_out = (Wire.read() | Wire.read() << 8) >> 2; // Z-axis value
+	Wire.requestFrom(ADXL345, 6, true); // Read 6 registers total, each axis value is stored in 2 registers
+										/*
+									  float X_out, Y_out, Z_out; // Outputs
+										X_out = (Wire.read() | Wire.read() << 8); // X-axis value
+										X_out = X_out / 256;					  // For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
+										Y_out = (Wire.read() | Wire.read() << 8); // Y-axis value
+										Y_out = Y_out / 256;
+										Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
+										Z_out = Z_out / 256;
+									  */
+	int16 X_out, Y_out, Z_out;			// Outputs
+	// Reading the values, and 10 bit to int8
+	X_out = (Wire.read() | Wire.read() << 8) >> 2; // X-axis value
+	Y_out = (Wire.read() | Wire.read() << 8) >> 2; // Y-axis value
+	Z_out = (Wire.read() | Wire.read() << 8) >> 2; // Z-axis value
 
 	Measurement.accelerometer_X = X_out;
 	Measurement.accelerometer_Y = Y_out;
@@ -306,7 +306,6 @@ void Measurement_hall_effect()
 
 	sensors_event_t event;
 	mag.getEvent(&event);
-	
 
 	// Raw readings in microteslas (µT)
 	float rawX = event.magnetic.x;
@@ -352,7 +351,7 @@ void My_Radio()
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
-	//radio.write(&(Data.data[Data.first_entry]), size);
+	// radio.write(&(Data.data[Data.first_entry]), size);
 	radio.write(&(Measurement), sizeof(Measurement_struct));
 
 	// We need to check if the message got recived
