@@ -32,6 +32,10 @@ unsigned long lastDisplayTime = 0;
 const unsigned long displayInterval = 1000; // ms
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+//Update variables
+unsigned long lastUpdateTime = 0;
+const unsigned long updateInterval = 10000;
+
 
 // Setup the data structures for ground and CanSat
 struct Measurement_struct
@@ -45,8 +49,8 @@ struct Measurement_struct
 
 struct Ground_struct
 {
-	float humidity = 0;
-	float temperature = 0;
+	uint8_t humidity = 0;
+	uint8_t temperature = 0;
 };
 
 Measurement_struct Measurement;
@@ -94,36 +98,36 @@ void setup()
 	Init_display();
   Init_dht();
 }
-int count = 0;
-void loop()
-{
-	// Read the data if available in buffer
-	if (radio.available())
-	{
-		//Serial.print(count++);
-		//Serial.print("\n");
-		radio.read(&Measurement, sizeof(Measurement));
-		Serial.print(Measurement.distance);
-		Serial.print("\t");
-		Serial.print(float(Measurement.temp)/10);
-		Serial.print("\t");
-		Serial.print(float(Measurement.accelerometer_X)* 0.015748);Serial.print("\t");
-		Serial.print(float(Measurement.accelerometer_Y)* 0.015748);Serial.print("\t");
-		Serial.print(float(Measurement.accelerometer_Z)* 0.015748);Serial.print("\t");
-		Serial.print(Measurement.magX);Serial.print("\t");
-		Serial.print(Measurement.magY);Serial.print("\t");
-		Serial.println(Measurement.magZ);
-	}
-	else
-	{
-		//Measurement_DHT();
-		//if (millis() - lastDisplayTime >= displayInterval) 
-		//{
-    //lastDisplayTime = millis();
-    //display_ground();
-		//}
-	}
+
+void loop() {
+  // Always prioritize reading from the radio
+  if (radio.available()) {
+    radio.read(&Measurement, sizeof(Measurement));
+    
+    // Send one clean tab-separated line over serial
+    Serial.print(Measurement.distance); Serial.print("\t");
+    Serial.print(float(Measurement.temp) / 10); Serial.print("\t");
+    Serial.print(float(Measurement.accelerometer_X) * 0.015748); Serial.print("\t");
+    Serial.print(float(Measurement.accelerometer_Y) * 0.015748); Serial.print("\t");
+    Serial.print(float(Measurement.accelerometer_Z) * 0.015748); Serial.print("\t");
+    Serial.print(Measurement.magX); Serial.print("\t");
+    Serial.print(Measurement.magY); Serial.print("\t");
+    Serial.println(Measurement.magZ);
+  }
+
+  // Occasionally sample DHT and update display
+  unsigned long now = millis();
+  if (now - lastUpdateTime >= updateInterval) {
+    lastUpdateTime = now;
+
+    // Read DHT
+    Measurement_DHT();
+
+    // Update OLED display
+    display_ground();
+  }
 }
+
 
 void display_ground() {
 	int precision = 3;
