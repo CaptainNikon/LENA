@@ -36,11 +36,12 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // Setup the data structures for ground and CanSat
 struct Measurement_struct
 {
-	uint16_t distance = 0; 	// [mm]
-	uint16_t temp = 0; 		// *100 [°C]
-	int16_t accelerometer_X, accelerometer_Y, accelerometer_Z; // [g] ?
-	float magX, magY, magZ; // ? 
-};
+  uint8_t distance;
+  uint16_t temp;
+  int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
+  float magX, magY, magZ;
+} __attribute__((packed));
+
 
 struct Ground_struct
 {
@@ -103,18 +104,15 @@ void loop()
 		//Serial.print("\n");
 		radio.read(&Measurement, sizeof(Measurement));
 		Serial.print(Measurement.distance);
-		Serial.print("mm\t");
-		Serial.print(Measurement.temp);
-		Serial.print("C\t");
-		Serial.print("\n");
+		Serial.print("\t");
+		Serial.print(float(Measurement.temp)/10);
+		Serial.print("\t");
 		Serial.print(float(Measurement.accelerometer_X)* 0.015748);Serial.print("\t");
 		Serial.print(float(Measurement.accelerometer_Y)* 0.015748);Serial.print("\t");
 		Serial.print(float(Measurement.accelerometer_Z)* 0.015748);Serial.print("\t");
-		Serial.print("\n");
 		Serial.print(Measurement.magX);Serial.print("\t");
 		Serial.print(Measurement.magY);Serial.print("\t");
-		Serial.print(Measurement.magZ);Serial.print("\t");
-		Serial.print("\n");
+		Serial.println(Measurement.magZ);
 	}
 	else
 	{
