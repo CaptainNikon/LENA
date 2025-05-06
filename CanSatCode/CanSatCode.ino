@@ -52,9 +52,9 @@ struct CanSat_struct
 	// byte address[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
 	byte comands[10];
 };
-struct Measurement_struct
+struct __attribute__((packed)) Measurement_struct
 {
-	uint16 distance = 0; // Stored as 0.1 cm
+	uint8 distance = 0; // Stored as 0.1 cm
 	uint16 temp = 0;
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
 	float calX = 0, calY = 0, calZ = 0;
@@ -113,7 +113,7 @@ void Data_first_delete()
 void Move_meassurment_to_data()
 {
 	// Move all the meassurments from the Meassurment struct to last entris in data
-	uint16 size = sizeof(Measurement);
+	uint16 size = sizeof(Measurement_struct);
 
 	// pointer to measurment values
 	byte *Measurment_ptr = (byte *)&Measurement;
@@ -265,13 +265,8 @@ void Measurement_Ultrasonic()
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
 	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
 	// Calculating the distance
-	uint16 distance = duration * 0.034 * 10 / 2.;
+	Measurement.distance = duration *0.17;// 0.17 = 0.034 * 10 / 2;
 
-	if (distance > 200.0)
-	{
-		// distance = 200;
-	}
-	Measurement.distance = distance;
 }
 
 void Measurement_accelerometer()
@@ -318,32 +313,7 @@ void Measurement_hall_effect()
 	Measurement.calY = rawY;
 	Measurement.calZ = rawZ;
 
-	/*
-	 // Accumulate values
-	sumX += Measurement.calX;
-	sumY += Measurement.calY;
-	sumZ += Measurement.calZ;
-	sampleCount++;
-	*/
 
-	/*
-	// Every 1000 ms: calculate and print average
-	if (millis() - lastPrintTime >= 1000) {
-	  float avgX = sumX / sampleCount;
-	  float avgY = sumY / sampleCount;
-	  float avgZ = sumZ / sampleCount;
-
-	  Serial.print("Average Calibrated: ");
-	  Serial.print(avgX, 2); Serial.print(", ");
-	  Serial.print(avgY, 2); Serial.print(", ");
-	  Serial.print(avgZ, 2); Serial.println(" µT");
-
-	  // Reset for next second
-	  sumX = sumY = sumZ = 0;
-	  sampleCount = 0;
-	  lastPrintTime = millis();
-	}
-	*/
 }
 
 void My_Radio()
