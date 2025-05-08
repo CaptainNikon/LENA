@@ -10,7 +10,8 @@
 
 // Radio Setup
 RF24 radio(9, 8); // CE, CSN
-byte address[6] = "Canst";
+byte adress_g[7] = "Ground";
+byte adress_c[6] = "Canst";
 
 // Some good definition
 #define uint8 uint8_t
@@ -38,13 +39,13 @@ const unsigned long updateInterval = 10000;
 
 
 // Setup the data structures for ground and CanSat
-struct Measurement_struct
+struct __attribute__((packed)) Measurement_struct
 {
   uint8_t distance;
   uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   float magX, magY, magZ;
-} __attribute__((packed));
+} ;
 
 
 struct Ground_struct
@@ -85,9 +86,12 @@ void setup()
 	radio.setAutoAck(1);
 	//radio.setPALevel(RF24_PA_LOW);
 	radio.setDataRate(RF24_250KBPS);
-	radio.openReadingPipe(0, address);
+	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
+  radio.setAutoAck(1);
+	radio.setRetries(1, 15);
 	radio.startListening();
+
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
@@ -112,8 +116,30 @@ void loop() {
     Serial.print(float(Measurement.accelerometer_Z) * 0.015748); Serial.print("\t");
     Serial.print(Measurement.magX); Serial.print("\t");
     Serial.print(Measurement.magY); Serial.print("\t");
-    Serial.println(Measurement.magZ);
+    Serial.print(Measurement.magZ);Serial.print("\t");
+    Serial.print(Ground.temperature);Serial.print("\t");
+    Serial.println(Ground.humidity);
   }
+
+   // Check for incoming serial command
+  if (Serial.available()) {
+  String command = Serial.readStringUntil('\n');
+  command.trim();  // Remove whitespace or newline
+
+  if (command.length() == 1) {
+    char c = command.charAt(0);  // Extract the single character
+    Serial.print("Command received: ");
+    Serial.println(c);
+
+    radio.stopListening();                // switch to TX mode
+    bool success = radio.write(&c, 1);    // send 1 byte (the char)
+    radio.startListening();               // back to RX mode
+
+    Serial.println(success ? "Command sent to CanSat" : "Send failed");
+  } else {
+    Serial.println("Invalid command: must be 1 char");
+  }}
+
 
   // Occasionally sample DHT and update display
   unsigned long now = millis();
