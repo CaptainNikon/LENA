@@ -10,6 +10,7 @@
 #include <Wire.h>			   // Wire library - used for I2C communication
 #include <Adafruit_LIS2MDL.h>
 #include <Adafruit_Sensor.h>
+//#include <Servo.h>
 
 // Defins the data storage size in bytes
 #define STORAGE_SIZE 150
@@ -22,17 +23,20 @@
 #define DS18B20_PIN 2 // Dataline is plugged into digital pin 2
 int ADXL345 = 0x1D;	  // Adress for DRFduino
 
+
 RF24 radio(CE_PIN, SPI_Radio);		 // CE, CSN
 OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
 DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemperature
 Adafruit_LIS2MDL mag = Adafruit_LIS2MDL();
+//Servo myservo;  // create servo object to control a servo
 
 // Some good definition
 #define uint8 uint8_t
 #define int8 int8_t
 #define uint16 uint16_t
 #define int16 int16_t
-const byte address[6] = "Canst";
+const byte address_g[7] = "Ground";
+const byte address_c[6] = "Canst";
 
 // For LIS2MDL
 float sumX = 0, sumY = 0, sumZ = 0;
@@ -49,9 +53,12 @@ unsigned long lastPrintTime = 0;
 struct CanSat_struct
 {
 	// Ground station name?
-	// byte address[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
+	// byte address_g[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
 	byte comands[10];
+	int Servo_pos = 0;    // variable to store the servo position
+
 };
+// __attribute__((packed)) 
 struct __attribute__((packed)) Measurement_struct
 {
 	uint8 distance = 0; // Stored as 0.1 cm
@@ -77,6 +84,7 @@ void Measurement_DHT();
 void Measurement_Ultrasonic();
 void Measurement_accelerometer();
 void Measurement_hall_effect();
+void Servo_move();
 
 //  Decleration of initialization functions
 void Init_Radio();
@@ -85,6 +93,7 @@ void Init_Ultrasonic();
 void Init_dht();
 void Init_accelerometer();
 void Init_hall_effect();
+void Init_servo();
 
 uint8 Meassurment_size()
 {
@@ -139,6 +148,7 @@ void setup()
 	Init_DS18B20();
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
+  Init_servo();
 }
 
 void print_values()
@@ -165,13 +175,18 @@ void print_values()
 	Serial.println(Measurement.calZ);
 }
 
+
 void loop()
 {
 	// Take the measurement
 	Measurement_Ultrasonic();
+  delay(30);
 	Measurement_DS18B20();
+  delay(30);
 	Measurement_accelerometer();
+  delay(30);
 	Measurement_hall_effect();
+  delay(30);
 
 	print_values();
 
@@ -180,6 +195,8 @@ void loop()
 
 	// Radio over the data from Data
 	My_Radio();
+
+  //Servo_move();
 
 	// delay(300);
 }
@@ -192,7 +209,7 @@ void Init_Radio()
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21); // set the channel to 21
-	radio.openWritingPipe(address);
+	radio.openWritingPipe(address_g);
 	radio.setAutoAck(1);
 	radio.setRetries(1, 15);
 
@@ -200,7 +217,9 @@ void Init_Radio()
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
 
-	radio.stopListening();
+
+  radio.openReadingPipe(1, address_c);
+  
 }
 
 void Init_Ultrasonic()
@@ -246,6 +265,11 @@ void Init_hall_effect()
 		while (1)
 			;
 	}
+}
+
+void Init_servo()
+{
+  //myservo.attach(6);  
 }
 
 void Measurement_DS18B20()
@@ -315,18 +339,36 @@ void Measurement_hall_effect()
 
 
 }
+void Servo_move(){
+
+  //myservo.write(CanSat.Servo_pos);              // tell servo to go to position in variable 'pos'
+
+}
 
 void My_Radio()
 {
+  char comand;
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
+  //radio.stopListening();
 	// radio.write(&(Data.data[Data.first_entry]), size);
 	radio.write(&(Measurement), sizeof(Measurement_struct));
+  
 
+  /*
+  radio.startListening();
+  
+  delay(30);
+  if (radio.available()){
+    radio.read(&comand, sizeof(comand) + 1);
+  
+    Serial.write(comand);
+    Serial.write("\n");
+  }
 	// We need to check if the message got recived
 	// end if it did, delete the entry, but for now we assume it worked
-
+*/
 	// Delete entry
 	Data_first_delete();
 }
