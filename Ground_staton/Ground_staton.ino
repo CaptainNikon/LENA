@@ -109,18 +109,19 @@ void loop() {
     radio.read(&Measurement, sizeof(Measurement));
     
     // Send one clean tab-separated line over serial
-    Serial.print(Measurement.distance); Serial.print("\t");
-    Serial.print(float(Measurement.temp) / 10); Serial.print("\t");
-    Serial.print(float(Measurement.accelerometer_X) * 0.015748); Serial.print("\t");
-    Serial.print(float(Measurement.accelerometer_Y) * 0.015748); Serial.print("\t");
-    Serial.print(float(Measurement.accelerometer_Z) * 0.015748); Serial.print("\t");
-    Serial.print(Measurement.magX); Serial.print("\t");
-    Serial.print(Measurement.magY); Serial.print("\t");
-    Serial.print(Measurement.magZ);Serial.print("\t");
-    Serial.print(Ground.temperature);Serial.print("\t");
-    Serial.println(Ground.humidity);
+      Serial.print(millis()); Serial.print("\t");  // Timestamp
+      Serial.print(Measurement.distance); Serial.print("\t");
+      Serial.print(Measurement.temp); Serial.print("\t");  // Still in tenths of °C
+      Serial.print(Measurement.accelerometer_X); Serial.print("\t");  // Raw ints
+      Serial.print(Measurement.accelerometer_Y); Serial.print("\t");
+      Serial.print(Measurement.accelerometer_Z); Serial.print("\t");
+      Serial.print(Measurement.magX); Serial.print("\t");
+      Serial.print(Measurement.magY); Serial.print("\t");
+      Serial.print(Measurement.magZ); Serial.print("\t");
+      Serial.print(Ground.temperature); Serial.print("\t");
+      Serial.println(Ground.humidity);
   }
-
+  
    // Check for incoming serial command
   if (Serial.available()) {
   String command = Serial.readStringUntil('\n');
