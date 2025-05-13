@@ -1,5 +1,5 @@
 # Code to run the data acquisation of the ground station
-# All modules needed can be installed using: pip install pyserial matplotlib numpy
+# All modules needed can be installed using: pip install pyserial matplotlib numpy os
 
 import serial
 import threading
@@ -11,6 +11,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
 from collections import deque
+import os
 
 # Config of the Arduino port
 serial_port = 'COM3'
@@ -19,7 +20,7 @@ baud_rate = 115200
 # Initialization of buffers to save time while saving
 raw_buffer = []
 calib_buffer = []
-FLUSH_THRESHOLD = 50 # Save every n lines
+FLUSH_THRESHOLD = 10 # Save every n lines
 raw_filename = 'log_raw_output.csv'
 calib_filename = 'log_calibrated_output.csv'
 
@@ -27,25 +28,38 @@ calib_filename = 'log_calibrated_output.csv'
 plot_length = 100
 data_buffer = deque(maxlen=plot_length)
 
+# Calibration matrix accelerometer
+Clbmtrx_acc = np.array([
+    [ 0.9816, -0.0377, -0.0231, -0.0151],
+    [-0.0008,  1.0021,  0.0005, -0.0559],
+    [ 0.0363,  0.0023,  1.0283, -0.0195]
+])
+
 # GLOBAL STATE
 ser = None
 running = True
 
 def calibrate(values):
+    global Clbmtrx_acc
     try:
         distance = int(values[0])
-        temp_c = float(values[1]) / 10.0
+        temp_c = float(values[1]) * 0.01
+
         acc_x = float(values[2]) * 0.015748
         acc_y = float(values[3]) * 0.015748
         acc_z = float(values[4]) * 0.015748
+        raw_acc = np.array([acc_x, acc_y, acc_z, 1.0])
+        calibrated_acc = Clbmtrx_acc @ raw_acc 
+        acc_x_c, acc_y_c, acc_z_c = calibrated_acc
+        
         mag_x = int(values[5])
         mag_y = int(values[6])
         mag_z = int(values[7])
         ground_t = float(values[8])
-        ground_h = float(values[9])
+        ground_h = 0.858*float(values[9])+0.005
     except Exception as e:
         raise ValueError(f"Calibration failed: {e}")
-    return [distance, temp_c, acc_x, acc_y, acc_z, mag_x, mag_y, mag_z, ground_t, ground_h]
+    return [distance, temp_c, acc_x_c, acc_y_c, acc_z_c, mag_x, mag_y, mag_z, ground_t, ground_h]
 
 # === SERIAL READER THREAD ===
 def serial_reader(log_widget):
@@ -68,20 +82,34 @@ def serial_reader(log_widget):
                 line = ser.readline().decode('utf-8').strip()
                 if line:
                     values = line.split('\t')
-                    if len(values) == 10:
+                    if len(values) == 11:
                         epoch_tt = time.time()
 
-                        # Add a new row
+                        # Store raw values
                         raw_row = [epoch_tt] + values
                         raw_buffer.append(raw_row)
-                        
+
                         try:
-                            # Calibration
+                            # Try calibration
                             calibrated = calibrate(values)
+                            
+                            # Basic validation (optional): check if length and type are as expected
+                            if not isinstance(calibrated, list) or len(calibrated) < 8:
+                                raise ValueError("Calibration returned unexpected result")
+
+                        except Exception as e:
+                            print(f"Calibration failed at {epoch_tt:.3f}, using raw values. Error: {e}")
+                            # Use raw values, converting them to float
+                            try:
+                                calibrated = list(map(float, values))
+                            except ValueError:
+                                print(f"Invalid raw data format at {epoch_tt:.3f}, skipping this line.")
+                                continue  # skip this line entirely if raw values are invalid
+
+                            # Proceed with data handling
                             calib_row = [epoch_tt] + calibrated
                             calib_buffer.append(calib_row)
                             display_line = f"{epoch_tt:.3f}\t{'\t'.join(map(str, calibrated))}\n"
-
 
                             # Buffer for plotting
                             temp_c = calibrated[1]
@@ -97,8 +125,7 @@ def serial_reader(log_widget):
                                 "mag_x": mag_x,
                                 "mag_y": mag_y,
                                 "mag_z": mag_z,
-                            })
-
+                                })
 
                         except ValueError as ve:
                             display_line = f"[Calibration Error] {ve} | Line: {line}\n"
@@ -204,7 +231,7 @@ def create_plots(root):
             ax.autoscale_view()
 
         canvas.draw()
-        root.after(200, update_plot)
+        root.after(50, update_plot)
 
     update_plot()
 
@@ -214,7 +241,7 @@ def start_gui():
     global ser, data_buffer, plot_length
     try:
         ser = serial.Serial(serial_port, baud_rate, timeout=1)
-        log_widget.insert(tk.END, f"[Info] Connected to {serial_port} at {baud_rate} baud\n")
+        #log_widget.insert(tk.END, f"[Info] Connected to {serial_port} at {baud_rate} baud\n")
         time.sleep(2)  # Allow Arduino to reset
     except serial.SerialException as e:
         print(f"Could not open serial port {serial_port}: {e}")
@@ -259,4 +286,18 @@ def start_gui():
 
 # === RUN GUI ===
 if __name__ == "__main__":
-    start_gui()
+    try:
+        start_gui()
+    except KeyboardInterrupt:
+        print('Interrupted')
+        try:
+            with open(raw_filename, mode='w', newline='') as raw_file, \
+                open(calib_filename, mode='w', newline='') as calib_file:
+                raw_writer = csv.writer(raw_file, delimiter='\t')
+                calib_writer = csv.writer(calib_file, delimiter='\t')
+                if raw_buffer:
+                    raw_writer.writerows(raw_buffer)
+                if calib_buffer:
+                    calib_writer.writerows(calib_buffer)
+        except SystemExit:
+            os._exit(130)
