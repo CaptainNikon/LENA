@@ -10,7 +10,8 @@
 
 // Radio Setup
 RF24 radio(9, 8); // CE, CSN
-byte address[6] = "Canst";
+byte adress_g[7] = "Ground";
+byte adress_c[6] = "Canst";
 
 // Some good definition
 #define uint8 uint8_t
@@ -32,19 +33,27 @@ unsigned long lastDisplayTime = 0;
 const unsigned long displayInterval = 1000; // ms
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+
+//Update variables
+unsigned long lastUpdateTime = 0;
+const unsigned long updateInterval = 10000;
+
+
 // Setup the data structures for ground and CanSat
-struct Measurement_struct
+struct __attribute__((packed)) Measurement_struct
 {
-	uint16_t distance = 0;									   // [mm]
-	uint16_t temp = 0;										   // *100 [°C]
-	int16_t accelerometer_X, accelerometer_Y, accelerometer_Z; // [g] ?
-	float magX, magY, magZ;									   // ?
-};
+
+  uint8_t distance;
+  uint16_t temp;
+  int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
+  float magX, magY, magZ;
+} ;
+
 
 struct Ground_struct
 {
-	float humidity = 0;
-	float temperature = 0;
+	uint8_t humidity = 0;
+	uint8_t temperature = 0;
 };
 
 Measurement_struct Measurement;
@@ -79,63 +88,78 @@ void setup()
 	radio.setAutoAck(1);
 	// radio.setPALevel(RF24_PA_LOW);
 	radio.setDataRate(RF24_250KBPS);
-	radio.openReadingPipe(0, address);
+	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
+  radio.setAutoAck(1);
+	radio.setRetries(1, 15);
 	radio.startListening();
 
-	// Initialize the display
-	if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
-	{ // Address 0x3C is typical
-		Serial.println(F("SSD1306 allocation failed"));
-		for (;;)
-			; // Stop if display init fails
-	}
+
+  // Initialize the display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;); // Stop if display init fails
+  }
+
 
 	Init_display();
 	Init_dht();
 }
-int count = 0;
-void loop()
-{
-	// Read the data if available in buffer
-	if (radio.available())
-	{
-		// Serial.print(count++);
-		// Serial.print("\n");
-		radio.read(&Measurement, sizeof(Measurement));
-		Serial.print(Measurement.distance);
-		Serial.print("mm\t");
-		Serial.print(Measurement.temp);
-		Serial.print("C\t");
-		Serial.print("\n");
-		Serial.print(float(Measurement.accelerometer_X) * 0.015748);
-		Serial.print("\t");
-		Serial.print(float(Measurement.accelerometer_Y) * 0.015748);
-		Serial.print("\t");
-		Serial.print(float(Measurement.accelerometer_Z) * 0.015748);
-		Serial.print("\t");
-		Serial.print("\n");
-		Serial.print(Measurement.magX);
-		Serial.print("\t");
-		Serial.print(Measurement.magY);
-		Serial.print("\t");
-		Serial.print(Measurement.magZ);
-		Serial.print("\t");
-		Serial.print("\n");
-	}
-	else
-	{
-		// Measurement_DHT();
-		// if (millis() - lastDisplayTime >= displayInterval)
-		//{
-		// lastDisplayTime = millis();
-		// display_ground();
-		// }
-	}
+
+void loop() {
+  // Always prioritize reading from the radio
+  if (radio.available()) {
+    radio.read(&Measurement, sizeof(Measurement));
+    
+    // Send one clean tab-separated line over serial
+      Serial.print(millis()); Serial.print("\t");  // Timestamp
+      Serial.print(Measurement.distance); Serial.print("\t");
+      Serial.print(Measurement.temp); Serial.print("\t");  // Still in tenths of °C
+      Serial.print(Measurement.accelerometer_X); Serial.print("\t");  // Raw ints
+      Serial.print(Measurement.accelerometer_Y); Serial.print("\t");
+      Serial.print(Measurement.accelerometer_Z); Serial.print("\t");
+      Serial.print(Measurement.magX); Serial.print("\t");
+      Serial.print(Measurement.magY); Serial.print("\t");
+      Serial.print(Measurement.magZ); Serial.print("\t");
+      Serial.print(Ground.temperature); Serial.print("\t");
+      Serial.println(Ground.humidity);
+  }
+  
+   // Check for incoming serial command
+  if (Serial.available()) {
+  String command = Serial.readStringUntil('\n');
+  command.trim();  // Remove whitespace or newline
+
+  if (command.length() == 1) {
+    char c = command.charAt(0);  // Extract the single character
+    Serial.print("Command received: ");
+    Serial.println(c);
+
+    radio.stopListening();                // switch to TX mode
+    bool success = radio.write(&c, 1);    // send 1 byte (the char)
+    radio.startListening();               // back to RX mode
+
+    Serial.println(success ? "Command sent to CanSat" : "Send failed");
+  } else {
+    Serial.println("Invalid command: must be 1 char");
+  }}
+
+
+  // Occasionally sample DHT and update display
+  unsigned long now = millis();
+  if (now - lastUpdateTime >= updateInterval) {
+    lastUpdateTime = now;
+
+    // Read DHT
+    Measurement_DHT();
+
+    // Update OLED display
+    display_ground();
+  }
 }
 
-void display_ground()
-{
+
+void display_ground() {
 	int precision = 3;
 	char tempStr[precision + 1];
 	char humStr[precision + 1];
