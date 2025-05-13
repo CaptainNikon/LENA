@@ -74,6 +74,23 @@ void Init_display() {
 	delay(100);
 }
 
+
+void debug_print() {
+  Serial.print(millis()); Serial.print("\t");  // Timestamp
+  Serial.print(Measurement.distance); Serial.print("\t");
+  Serial.print(Measurement.temp); Serial.print("\t");  // Still in tenths of °C
+  Serial.print(Measurement.accelerometer_X); Serial.print("\t");  // Raw ints
+  Serial.print(Measurement.accelerometer_Y); Serial.print("\t");
+  Serial.print(Measurement.accelerometer_Z); Serial.print("\t");
+  Serial.print(Measurement.magX); Serial.print("\t");
+  Serial.print(Measurement.magY); Serial.print("\t");
+  Serial.print(Measurement.magZ); Serial.print("\t");
+  Serial.print(Ground.temperature); Serial.print("\t");
+  Serial.println(Ground.humidity);
+}
+
+
+
 void setup()
 {
 	while (!Serial)
@@ -107,7 +124,6 @@ void loop() {
   // Always prioritize reading from the radio
   if (radio.available()) {
     radio.read(&Measurement, sizeof(Measurement));
-    
     // Send one clean tab-separated line over serial
       Serial.print(millis()); Serial.print("\t");  // Timestamp
       Serial.print(Measurement.distance); Serial.print("\t");
@@ -152,6 +168,8 @@ void loop() {
 
     // Update OLED display
     display_ground();
+
+    //debug_print();
   }
 }
 
