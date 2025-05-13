@@ -56,6 +56,7 @@ struct CanSat_struct
 	// byte address_g[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
 	byte comands[10];
 	int Servo_pos = 0;    // variable to store the servo position
+	uint loop_count=0;
 
 };
 // __attribute__((packed)) 
@@ -70,7 +71,7 @@ struct Data_struct
 {
 	uint16 first_entry = 0;	 // First entries with data
 	uint16 end_entry = 0;	 // First empty entriy
-	byte data[STORAGE_SIZE]; // Data storage
+	byte data[STORAGE_SIZE+20]; // Data storage
 };
 
 // Declear our structs
@@ -128,6 +129,9 @@ void Move_meassurment_to_data()
 	byte *Measurment_ptr = (byte *)&Measurement;
 
 	// Coppy evrything in measurment struct to data struct byte by byte
+	if(Data.end_entry+size>STORAGE_SIZE){
+		Data.end_entry=0;
+	}
 	for (uint16 i = 0; i < size; i++)
 	{
 		Data.data[(i + Data.end_entry) % STORAGE_SIZE] = Measurment_ptr[i];
@@ -153,6 +157,7 @@ void setup()
 
 void print_values()
 {
+	Serial.print(CanSat.loop_count);
 	Serial.print("=========== new ===========\n");
 	Serial.print("distance\t");
 	Serial.print(Measurement.distance);
@@ -199,10 +204,13 @@ void loop()
   //Servo_move();
 
 	// delay(300);
+	++CanSat.loop_count;
 }
 
 void Init_Radio()
 {
+	
+	// radio.begin(1000000); // Test this
 	radio.begin();
 
 	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s, RF24_250KBPS
@@ -210,16 +218,19 @@ void Init_Radio()
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21); // set the channel to 21
 	radio.openWritingPipe(address_g);
-	radio.setAutoAck(1);
-	radio.setRetries(1, 15);
+	radio.setAutoAck(true);
+  radio.enableAckPayload();
+  radio.enableDynamicPayloads();
+	radio.setRetries(5, 15);
 
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
 
 
-  radio.openReadingPipe(1, address_c);
-  
+	radio.openReadingPipe(1, address_c);
+
+	radio.startListening();
 }
 
 void Init_Ultrasonic()
@@ -234,6 +245,7 @@ void Init_DS18B20()
 }
 void Init_CanSat()
 {
+	//
 }
 
 void Init_accelerometer()
@@ -347,28 +359,50 @@ void Servo_move(){
 
 void My_Radio()
 {
-  char comand;
-	// Getting the size of datae
-	uint16 size = Data_entry_size(Data.first_entry);
 
-  //radio.stopListening();
-	// radio.write(&(Data.data[Data.first_entry]), size);
-	radio.write(&(Measurement), sizeof(Measurement_struct));
-  
+	// Reciving comands
+	if (radio.available()){
+		radio.read(&CanSat.comands, sizeof(CanSat.comands));
 
-  /*
-  radio.startListening();
-  
-  delay(30);
-  if (radio.available()){
-    radio.read(&comand, sizeof(comand) + 1);
-  
-    Serial.write(comand);
-    Serial.write("\n");
-  }
-	// We need to check if the message got recived
-	// end if it did, delete the entry, but for now we assume it worked
-*/
-	// Delete entry
-	Data_first_delete();
+		Serial.write(CanSat.comands);
+		Serial.write("\n");
+	}
+
+	// checking if we have data to send
+	if(Data.first_entry!=Data.end_entry){
+		radio.stopListening();
+		// Getting the size of datae
+		uint16 size = Data_entry_size(Data.first_entry);
+
+		// sending data
+		if(radio.writeAckPayload(1, &(Data.data[Data.first_entry]), size)){
+			Serial.print("payload was loaded into the TX FIFO\n")
+
+		
+			//radio.write(&(Measurement), sizeof(Measurement_struct));
+			Data_first_delete();
+			radio.startListening();
+		}else {
+			Serial.print("payload wasn't loaded into the TX FIFO because it is already full ... \n")
+		}
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
