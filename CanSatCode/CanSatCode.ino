@@ -10,6 +10,7 @@
 #include <Wire.h>			   // Wire library - used for I2C communication
 #include <Adafruit_LIS2MDL.h>
 #include <Adafruit_Sensor.h>
+//#include <Servo.h>
 
 // Defins the data storage size in bytes
 #define STORAGE_SIZE 150
@@ -22,17 +23,20 @@
 #define DS18B20_PIN 2 // Dataline is plugged into digital pin 2
 int ADXL345 = 0x1D;	  // Adress for DRFduino
 
+
 RF24 radio(CE_PIN, SPI_Radio);		 // CE, CSN
 OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
 DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemperature
 Adafruit_LIS2MDL mag = Adafruit_LIS2MDL();
+//Servo myservo;  // create servo object to control a servo
 
 // Some good definition
 #define uint8 uint8_t
 #define int8 int8_t
 #define uint16 uint16_t
 #define int16 int16_t
-const byte address[6] = "Canst";
+const byte address_g[7] = "Ground";
+const byte address_c[6] = "Canst";
 
 // For LIS2MDL
 float sumX = 0, sumY = 0, sumZ = 0;
@@ -49,12 +53,16 @@ unsigned long lastPrintTime = 0;
 struct CanSat_struct
 {
 	// Ground station name?
-	// byte address[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
+	// byte address_g[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
 	byte comands[10];
+	int Servo_pos = 0;    // variable to store the servo position
+	uint loop_count=0;
+
 };
-struct Measurement_struct
+// __attribute__((packed)) 
+struct __attribute__((packed)) Measurement_struct
 {
-	uint16 distance = 0; // Stored as 0.1 cm
+	uint8 distance = 0; // Stored as 0.1 cm
 	uint16 temp = 0;
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
 	float calX = 0, calY = 0, calZ = 0;
@@ -63,7 +71,7 @@ struct Data_struct
 {
 	uint16 first_entry = 0;	 // First entries with data
 	uint16 end_entry = 0;	 // First empty entriy
-	byte data[STORAGE_SIZE]; // Data storage
+	byte data[STORAGE_SIZE+20]; // Data storage
 };
 
 // Declear our structs
@@ -77,6 +85,7 @@ void Measurement_DHT();
 void Measurement_Ultrasonic();
 void Measurement_accelerometer();
 void Measurement_hall_effect();
+void Servo_move();
 
 //  Decleration of initialization functions
 void Init_Radio();
@@ -85,6 +94,7 @@ void Init_Ultrasonic();
 void Init_dht();
 void Init_accelerometer();
 void Init_hall_effect();
+void Init_servo();
 
 uint8 Meassurment_size()
 {
@@ -113,12 +123,15 @@ void Data_first_delete()
 void Move_meassurment_to_data()
 {
 	// Move all the meassurments from the Meassurment struct to last entris in data
-	uint16 size = sizeof(Measurement);
+	uint16 size = sizeof(Measurement_struct);
 
 	// pointer to measurment values
 	byte *Measurment_ptr = (byte *)&Measurement;
 
 	// Coppy evrything in measurment struct to data struct byte by byte
+	if(Data.end_entry+size>STORAGE_SIZE){
+		Data.end_entry=0;
+	}
 	for (uint16 i = 0; i < size; i++)
 	{
 		Data.data[(i + Data.end_entry) % STORAGE_SIZE] = Measurment_ptr[i];
@@ -139,40 +152,48 @@ void setup()
 	Init_DS18B20();
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
+  Init_servo();
 }
 
-void print_values(){
-    Serial.print("=========== new ===========\n");
-  Serial.print("distance\t");
-  Serial.print(Measurement.distance);
-  Serial.print("   temp\t");
-  Serial.print(Measurement.temp);
-  Serial.print("\n");
+void print_values()
+{
+	Serial.print(CanSat.loop_count);
+	Serial.print("=========== new ===========\n");
+	Serial.print("distance\t");
+	Serial.print(Measurement.distance);
+	Serial.print("   temp\t");
+	Serial.print(Measurement.temp);
+	Serial.print("\n");
 
-  Serial.print("Xa= ");
-  Serial.print(Measurement.accelerometer_X);
-  Serial.print("   Ya= ");
-  Serial.print(Measurement.accelerometer_Y);
-  Serial.print("   Za= ");
-  Serial.println(Measurement.accelerometer_Z);
+	Serial.print("Xa= ");
+	Serial.print(Measurement.accelerometer_X);
+	Serial.print("   Ya= ");
+	Serial.print(Measurement.accelerometer_Y);
+	Serial.print("   Za= ");
+	Serial.println(Measurement.accelerometer_Z);
 
-  Serial.print("Xmag= ");
-  Serial.print(Measurement.calX);
-  Serial.print("   Ymag= ");
-  Serial.print(Measurement.calY);
-  Serial.print("   Zmag= ");
-  Serial.println(Measurement.calZ);
+	Serial.print("Xmag= ");
+	Serial.print(Measurement.calX);
+	Serial.print("   Ymag= ");
+	Serial.print(Measurement.calY);
+	Serial.print("   Zmag= ");
+	Serial.println(Measurement.calZ);
 }
+
 
 void loop()
 {
 	// Take the measurement
 	Measurement_Ultrasonic();
+  delay(30);
 	Measurement_DS18B20();
+  delay(30);
 	Measurement_accelerometer();
+  delay(30);
 	Measurement_hall_effect();
-  
-  print_values();
+  delay(30);
+
+	print_values();
 
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
@@ -180,28 +201,36 @@ void loop()
 	// Radio over the data from Data
 	My_Radio();
 
-	//delay(300);
+  //Servo_move();
+
+	// delay(300);
+	++CanSat.loop_count;
 }
-
-
 
 void Init_Radio()
 {
+	
+	// radio.begin(1000000); // Test this
 	radio.begin();
 
 	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s, RF24_250KBPS
-	//radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
-	// radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
+	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21); // set the channel to 21
-	radio.openWritingPipe(address);
-  radio.setAutoAck(1);
-  radio.setRetries(1, 15);
+	radio.openWritingPipe(address_g);
+	radio.setAutoAck(true);
+  radio.enableAckPayload();
+  radio.enableDynamicPayloads();
+	radio.setRetries(5, 15);
 
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
 
-	radio.stopListening();
+
+	radio.openReadingPipe(1, address_c);
+
+	radio.startListening();
 }
 
 void Init_Ultrasonic()
@@ -216,6 +245,7 @@ void Init_DS18B20()
 }
 void Init_CanSat()
 {
+	//
 }
 
 void Init_accelerometer()
@@ -244,34 +274,35 @@ void Init_hall_effect()
 	if (!mag.begin())
 	{
 		Serial.println("LIS2MDL not found. Check wiring.");
-		while (1);
+		while (1)
+			;
 	}
+}
+
+void Init_servo()
+{
+  //myservo.attach(6);  
 }
 
 void Measurement_DS18B20()
 {
-  sensors.requestTemperatures(); // send request to device to get temperature
-  Measurement.temp = sensors.getTempCByIndex(0)*10; // switch to bit manipulation aka, << n
+	sensors.requestTemperatures();						// send request to device to get temperature
+	Measurement.temp = sensors.getTempCByIndex(0) * 10; // switch to bit manipulation aka, << n
 }
 void Measurement_Ultrasonic()
 {
-  // Clears the PIN_Ultrasonic_trig
-  digitalWrite(PIN_Ultrasonic_trig, LOW);
-  delayMicroseconds(2);
-  // Sets the PIN_Ultrasonic_trig on HIGH state for 10 micro seconds
-  digitalWrite(PIN_Ultrasonic_trig, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(PIN_Ultrasonic_trig, LOW);
-  // Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
-  uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
-  // Calculating the distance
-  uint16 distance = duration * 0.034 * 10 / 2.;
+	// Clears the PIN_Ultrasonic_trig
+	digitalWrite(PIN_Ultrasonic_trig, LOW);
+	delayMicroseconds(2);
+	// Sets the PIN_Ultrasonic_trig on HIGH state for 10 micro seconds
+	digitalWrite(PIN_Ultrasonic_trig, HIGH);
+	delayMicroseconds(10);
+	digitalWrite(PIN_Ultrasonic_trig, LOW);
+	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
+	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
+	// Calculating the distance
+	Measurement.distance = duration *0.17;// 0.17 = 0.034 * 10 / 2;
 
-  if (distance > 200.0)
-  {
-    // distance = 200;
-  }
-  Measurement.distance = distance;
 }
 
 void Measurement_accelerometer()
@@ -280,21 +311,21 @@ void Measurement_accelerometer()
 	Wire.beginTransmission(ADXL345);
 	Wire.write(0x32); // Start with register 0x32 (ACCEL_XOUT_H)
 	Wire.endTransmission(false);
-	Wire.requestFrom(ADXL345, 6, true);		  // Read 6 registers total, each axis value is stored in 2 registers
-	/*
-  float X_out, Y_out, Z_out; // Outputs
-	X_out = (Wire.read() | Wire.read() << 8); // X-axis value
-	X_out = X_out / 256;					  // For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
-	Y_out = (Wire.read() | Wire.read() << 8); // Y-axis value
-	Y_out = Y_out / 256;
-	Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
-	Z_out = Z_out / 256;
-  */
-  int16 X_out, Y_out, Z_out; // Outputs
-  // Reading the values, and 10 bit to int8
-  X_out = (Wire.read() | Wire.read() << 8) >> 2; // X-axis value
-  Y_out = (Wire.read() | Wire.read() << 8) >> 2; // Y-axis value
-  Z_out = (Wire.read() | Wire.read() << 8) >> 2; // Z-axis value
+	Wire.requestFrom(ADXL345, 6, true); // Read 6 registers total, each axis value is stored in 2 registers
+										/*
+									  float X_out, Y_out, Z_out; // Outputs
+										X_out = (Wire.read() | Wire.read() << 8); // X-axis value
+										X_out = X_out / 256;					  // For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
+										Y_out = (Wire.read() | Wire.read() << 8); // Y-axis value
+										Y_out = Y_out / 256;
+										Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
+										Z_out = Z_out / 256;
+									  */
+	int16 X_out, Y_out, Z_out;			// Outputs
+	// Reading the values, and 10 bit to int8
+	X_out = (Wire.read() | Wire.read() << 8) >> 2; // X-axis value
+	Y_out = (Wire.read() | Wire.read() << 8) >> 2; // Y-axis value
+	Z_out = (Wire.read() | Wire.read() << 8) >> 2; // Z-axis value
 
 	Measurement.accelerometer_X = X_out;
 	Measurement.accelerometer_Y = Y_out;
@@ -306,7 +337,6 @@ void Measurement_hall_effect()
 
 	sensors_event_t event;
 	mag.getEvent(&event);
-	
 
 	// Raw readings in microteslas (µT)
 	float rawX = event.magnetic.x;
@@ -319,45 +349,60 @@ void Measurement_hall_effect()
 	Measurement.calY = rawY;
 	Measurement.calZ = rawZ;
 
-	/*
-	 // Accumulate values
-	sumX += Measurement.calX;
-	sumY += Measurement.calY;
-	sumZ += Measurement.calZ;
-	sampleCount++;
-	*/
 
-	/*
-	// Every 1000 ms: calculate and print average
-	if (millis() - lastPrintTime >= 1000) {
-	  float avgX = sumX / sampleCount;
-	  float avgY = sumY / sampleCount;
-	  float avgZ = sumZ / sampleCount;
+}
+void Servo_move(){
 
-	  Serial.print("Average Calibrated: ");
-	  Serial.print(avgX, 2); Serial.print(", ");
-	  Serial.print(avgY, 2); Serial.print(", ");
-	  Serial.print(avgZ, 2); Serial.println(" µT");
+  //myservo.write(CanSat.Servo_pos);              // tell servo to go to position in variable 'pos'
 
-	  // Reset for next second
-	  sumX = sumY = sumZ = 0;
-	  sampleCount = 0;
-	  lastPrintTime = millis();
-	}
-	*/
 }
 
 void My_Radio()
 {
-	// Getting the size of datae
-	uint16 size = Data_entry_size(Data.first_entry);
 
-	//radio.write(&(Data.data[Data.first_entry]), size);
-	radio.write(&(Measurement), sizeof(Measurement_struct));
+	// Reciving comands
+	if (radio.available()){
+		radio.read(&CanSat.comands, sizeof(CanSat.comands));
 
-	// We need to check if the message got recived
-	// end if it did, delete the entry, but for now we assume it worked
+		Serial.write(CanSat.comands);
+		Serial.write("\n");
+	}
 
-	// Delete entry
-	Data_first_delete();
+	// checking if we have data to send
+	if(Data.first_entry!=Data.end_entry){
+		radio.stopListening();
+		// Getting the size of datae
+		uint16 size = Data_entry_size(Data.first_entry);
+
+		// sending data
+		if(radio.writeAckPayload(1, &(Data.data[Data.first_entry]), size)){
+			Serial.print("payload was loaded into the TX FIFO\n")
+
+		
+			//radio.write(&(Measurement), sizeof(Measurement_struct));
+			Data_first_delete();
+			radio.startListening();
+		}else {
+			Serial.print("payload wasn't loaded into the TX FIFO because it is already full ... \n")
+		}
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
