@@ -15,11 +15,14 @@
 // Defins the data storage size in bytes
 #define STORAGE_SIZE 150
 
+//RF24 radio(7, 8); // CE, CSN
+
+
 // Defins the pins
 #define PIN_Ultrasonic_trig 3 // Ultrasonic triger pin
 #define PIN_Ultrasonic_echo 4 // Ultrasonic echo pin
-#define SPI_Radio 10		  // Radio CSN pin
-#define CE_PIN 9
+#define SPI_Radio 8		  // Radio CSN pin
+#define CE_PIN 7
 #define DS18B20_PIN 2 // Dataline is plugged into digital pin 2
 int ADXL345 = 0x1D;	  // Adress for DRFduino
 
@@ -56,7 +59,6 @@ struct CanSat_struct
 	// byte address_g[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
 	byte comands[10];
 	int Servo_pos = 0;    // variable to store the servo position
-	uint loop_count=0;
 
 };
 // __attribute__((packed)) 
@@ -157,7 +159,6 @@ void setup()
 
 void print_values()
 {
-	Serial.print(CanSat.loop_count);
 	Serial.print("=========== new ===========\n");
 	Serial.print("distance\t");
 	Serial.print(Measurement.distance);
@@ -181,19 +182,30 @@ void print_values()
 }
 
 
+int loop_counter=0;             //holds the count for every loop pass
+long loop_timer_now=0;          //holds the current millis
+long previous_millis=0;         //holds the previous millis
+float loop_timer=0;              //holds difference (loop_timer_now - previous_millis) = total execution time
+int loop_test_times = 20000;  //Run loop 20000 times then calculate time
+
 void loop()
 {
+
+    loop_counter++;
+  if (loop_counter == 20)
+  { 
+    previous_millis = loop_timer_now; 
+    loop_timer_now = millis(); 
+    loop_counter = 0;
+    loop_timer = 1/((loop_timer_now - previous_millis) / 20000.0); 
+    Serial.println(loop_timer);
+  }
+
 	// Take the measurement
 	Measurement_Ultrasonic();
-  delay(30);
+    Measurement_accelerometer();
+    Measurement_hall_effect();
 	Measurement_DS18B20();
-  delay(30);
-	Measurement_accelerometer();
-  delay(30);
-	Measurement_hall_effect();
-  delay(30);
-
-	print_values();
 
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
@@ -207,6 +219,10 @@ void loop()
 	++CanSat.loop_count;
 }
 
+  
+
+}
+
 void Init_Radio()
 {
 	
@@ -218,19 +234,16 @@ void Init_Radio()
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21); // set the channel to 21
 	radio.openWritingPipe(address_g);
-	radio.setAutoAck(true);
-  radio.enableAckPayload();
-  radio.enableDynamicPayloads();
-	radio.setRetries(5, 15);
+	radio.setAutoAck(1);
+	radio.setRetries(1, 15);
+
 
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
 
-
-	radio.openReadingPipe(1, address_c);
-
-	radio.startListening();
+  radio.openReadingPipe(1, address_c);
+ 
 }
 
 void Init_Ultrasonic()
@@ -242,6 +255,7 @@ void Init_Ultrasonic()
 void Init_DS18B20()
 {
 	sensors.begin(); // start the sensor (wiring)
+  sensors.setResolution(8);
 }
 void Init_CanSat()
 {
@@ -286,8 +300,13 @@ void Init_servo()
 
 void Measurement_DS18B20()
 {
-	sensors.requestTemperatures();						// send request to device to get temperature
+	
+	//sensors.requestTemperatures();					// send request to device to get temperature
 	Measurement.temp = sensors.getTempCByIndex(0) * 10; // switch to bit manipulation aka, << n
+
+	// what dose this function do?!?!?! this is faster then getTempCByIndex by 30%.....
+	//Measurement.temp = sensors.getTemp(0);
+
 }
 void Measurement_Ultrasonic()
 {
@@ -359,50 +378,29 @@ void Servo_move(){
 
 void My_Radio()
 {
+  char comand;
+	// Getting the size of datae
+	uint16 size = Data_entry_size(Data.first_entry);
 
-	// Reciving comands
-	if (radio.available()){
-		radio.read(&CanSat.comands, sizeof(CanSat.comands));
+  //radio.stopListening();
+	// radio.write(&(Data.data[Data.first_entry]), size);
+	radio.write(&(Measurement), sizeof(Measurement_struct));
+  
 
-		Serial.write(CanSat.comands);
-		Serial.write("\n");
-	}
-
-	// checking if we have data to send
-	if(Data.first_entry!=Data.end_entry){
-		radio.stopListening();
-		// Getting the size of datae
-		uint16 size = Data_entry_size(Data.first_entry);
-
-		// sending data
-		if(radio.writeAckPayload(1, &(Data.data[Data.first_entry]), size)){
-			Serial.print("payload was loaded into the TX FIFO\n")
-
-		
-			//radio.write(&(Measurement), sizeof(Measurement_struct));
-			Data_first_delete();
-			radio.startListening();
-		}else {
-			Serial.print("payload wasn't loaded into the TX FIFO because it is already full ... \n")
-		}
-	}
+  /*
+  radio.startListening();
+  
+  delay(30);
+  if (radio.available()){
+    radio.read(&comand, sizeof(comand) + 1);
+  
+    Serial.write(comand);
+    Serial.write("\n");
+  }
+	// We need to check if the message got recived
+	// end if it did, delete the entry, but for now we assume it worked
+*/
+	// Delete entry
+	Data_first_delete();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
