@@ -20,18 +20,19 @@ byte adress_c[6] = "Canst";
 #define int16 int16_t
 
 // DHT variables
-#define PIN_DHT 2 // DHT data pin
+#define PIN_DHT 2	  // DHT data pin
 #define DHTType DHT11 // Specify the type of DHT
 DHT dht = DHT(PIN_DHT, DHTType);
 
 // Screen Setup
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
-#define OLED_RESET     -1
+#define OLED_RESET -1
 int dispupdate = 0;
 unsigned long lastDisplayTime = 0;
 const unsigned long displayInterval = 1000; // ms
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 
 //Update variables
 unsigned long lastUpdateTime = 0;
@@ -41,6 +42,7 @@ const unsigned long updateInterval = 10000;
 // Setup the data structures for ground and CanSat
 struct __attribute__((packed)) Measurement_struct
 {
+
   uint8_t distance;
   uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
@@ -57,20 +59,20 @@ struct Ground_struct
 Measurement_struct Measurement;
 Ground_struct Ground;
 
-
 // Initialization functions
 void Init_dht()
 {
 	dht.begin();
 }
 
-void Init_display() {
+void Init_display()
+{
 	display.clearDisplay();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(SSD1306_WHITE); // Draw white text
-  display.setCursor(0, 10);            // Position (x, y)
-  display.print("Starting...");
-  display.display();
+	display.setTextSize(1);				 // Normal 1:1 pixel scale
+	display.setTextColor(SSD1306_WHITE); // Draw white text
+	display.setCursor(0, 10);			 // Position (x, y)
+	display.print("Starting...");
+	display.display();
 	delay(100);
 }
 
@@ -97,11 +99,11 @@ void setup()
 		;
 	Serial.begin(115200);
 	radio.begin();
-	//radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
-	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
+	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	//   radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21);
 	radio.setAutoAck(1);
-	//radio.setPALevel(RF24_PA_LOW);
+	// radio.setPALevel(RF24_PA_LOW);
 	radio.setDataRate(RF24_250KBPS);
 	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
@@ -116,8 +118,9 @@ void setup()
     for (;;); // Stop if display init fails
   }
 
+
 	Init_display();
-  Init_dht();
+	Init_dht();
 }
 
 void loop() {
@@ -176,27 +179,31 @@ void loop() {
 
 void display_ground() {
 	int precision = 3;
-  char tempStr[precision+1];
-  char humStr[precision+1];
+	char tempStr[precision + 1];
+	char humStr[precision + 1];
 
-  // Convert float to string: (value, width, precision, name)
-  dtostrf(Ground.temperature, precision, 0, tempStr);
-  dtostrf(Ground.humidity,    precision, 0, humStr);
+	// Convert float to string: (value, width, precision, name)
+	dtostrf(Ground.temperature, precision, 0, tempStr);
+	dtostrf(Ground.humidity, precision, 0, humStr);
 
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
+	display.clearDisplay();
+	display.setTextSize(1);
+	display.setTextColor(SSD1306_WHITE);
+	display.setCursor(0, 0);
 
-  display.print("T:"); display.print(tempStr); display.print("C|Hum:"); display.print(humStr); display.print("%"); display.print("No:"); 
+	display.print("T:");
+	display.print(tempStr);
+	display.print("C|Hum:");
+	display.print(humStr);
+	display.print("%");
+	display.print("No:");
 	display.println(dispupdate++);
-  display.display();
+	display.display();
 }
-
 
 void Measurement_DHT()
 {
-  Ground.humidity = dht.readHumidity();
+	Ground.humidity = dht.readHumidity();
 	Ground.temperature = dht.readTemperature();
 	if (isnan(Ground.temperature) || isnan(Ground.humidity))
 	{

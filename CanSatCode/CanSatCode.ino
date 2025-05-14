@@ -73,7 +73,7 @@ struct Data_struct
 {
 	uint16 first_entry = 0;	 // First entries with data
 	uint16 end_entry = 0;	 // First empty entriy
-	byte data[STORAGE_SIZE]; // Data storage
+	byte data[STORAGE_SIZE+20]; // Data storage
 };
 
 // Declear our structs
@@ -131,6 +131,9 @@ void Move_meassurment_to_data()
 	byte *Measurment_ptr = (byte *)&Measurement;
 
 	// Coppy evrything in measurment struct to data struct byte by byte
+	if(Data.end_entry+size>STORAGE_SIZE){
+		Data.end_entry=0;
+	}
 	for (uint16 i = 0; i < size; i++)
 	{
 		Data.data[(i + Data.end_entry) % STORAGE_SIZE] = Measurment_ptr[i];
@@ -185,7 +188,6 @@ long previous_millis=0;         //holds the previous millis
 float loop_timer=0;              //holds difference (loop_timer_now - previous_millis) = total execution time
 int loop_test_times = 20000;  //Run loop 20000 times then calculate time
 
-
 void loop()
 {
 
@@ -204,9 +206,6 @@ void loop()
     Measurement_accelerometer();
     Measurement_hall_effect();
 	Measurement_DS18B20();
-  
-  
-	//print_values();
 
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
@@ -217,9 +216,8 @@ void loop()
   //Servo_move();
 
 	// delay(300);
-
-
-
+	++CanSat.loop_count;
+}
 
   
 
@@ -227,6 +225,8 @@ void loop()
 
 void Init_Radio()
 {
+	
+	// radio.begin(1000000); // Test this
 	radio.begin();
 
 	radio.setDataRate(RF24_250KBPS); // setting data rate to 250 kbit/s, RF24_250KBPS
@@ -237,13 +237,13 @@ void Init_Radio()
 	radio.setAutoAck(1);
 	radio.setRetries(1, 15);
 
+
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
 
-
   radio.openReadingPipe(1, address_c);
-  
+ 
 }
 
 void Init_Ultrasonic()
@@ -259,6 +259,7 @@ void Init_DS18B20()
 }
 void Init_CanSat()
 {
+	//
 }
 
 void Init_accelerometer()
@@ -305,6 +306,7 @@ void Measurement_DS18B20()
 
 	// what dose this function do?!?!?! this is faster then getTempCByIndex by 30%.....
 	//Measurement.temp = sensors.getTemp(0);
+
 }
 void Measurement_Ultrasonic()
 {
@@ -401,3 +403,4 @@ void My_Radio()
 	// Delete entry
 	Data_first_delete();
 }
+
