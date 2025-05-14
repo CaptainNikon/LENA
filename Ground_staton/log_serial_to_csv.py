@@ -42,24 +42,24 @@ running = True
 def calibrate(values):
     global Clbmtrx_acc
     try:
-        distance = int(values[0])
-        temp_c = float(values[1]) * 0.01
-
-        acc_x = float(values[2]) * 0.015748
-        acc_y = float(values[3]) * 0.015748
-        acc_z = float(values[4]) * 0.015748
+        timep = float(values[0])
+        distance = float(values[1])
+        temp_c = float(values[2])*0.1
+        acc_x = float(values[3]) * 0.015748
+        acc_y = float(values[4]) * 0.015748
+        acc_z = float(values[5]) * 0.015748
         raw_acc = np.array([acc_x, acc_y, acc_z, 1.0])
         calibrated_acc = Clbmtrx_acc @ raw_acc 
         acc_x_c, acc_y_c, acc_z_c = calibrated_acc
         
-        mag_x = int(values[5])
-        mag_y = int(values[6])
-        mag_z = int(values[7])
-        ground_t = float(values[8])
-        ground_h = 0.858*float(values[9])+0.005
+        mag_x = float(values[6])
+        mag_y = float(values[7])
+        mag_z = float(values[8])
+        ground_t = float(values[9])
+        ground_h = 0.858*float(values[10])+0.005
     except Exception as e:
         raise ValueError(f"Calibration failed: {e}")
-    return [distance, temp_c, acc_x_c, acc_y_c, acc_z_c, mag_x, mag_y, mag_z, ground_t, ground_h]
+    return [timep, distance, temp_c, acc_x_c, acc_y_c, acc_z_c, mag_x, mag_y, mag_z, ground_t, ground_h]
 
 # === SERIAL READER THREAD ===
 def serial_reader(log_widget):
@@ -72,65 +72,67 @@ def serial_reader(log_widget):
         calib_writer = csv.writer(calib_file, delimiter='\t')
 
         # Write headers
-        raw_writer.writerow(["EpochTT", "Raw_Distance", "Raw_Temp", "Raw_AccX", "Raw_AccY", "Raw_AccZ",
+        raw_writer.writerow(["Time", "Raw_Distance", "Raw_Temp", "Raw_AccX", "Raw_AccY", "Raw_AccZ",
                              "Raw_MagX", "Raw_MagY", "Raw_MagZ", "Raw_Ground_T", "Raw_Ground_H"])
-        calib_writer.writerow(["EpochTT", "Distance_mm", "Temp_C", "AccX_g", "AccY_g", "AccZ_g",
+        calib_writer.writerow(["Time", "Distance_mm", "Temp_C", "AccX_g", "AccY_g", "AccZ_g",
                                "MagX", "MagY", "MagZ", "Ground_T", "Ground_H"])
 
         while running:
             try:
+                if ser is None or not ser.is_open:
+                    display_line = "[Error] Serial port is not open.\n"
+                    log_widget.insert(tk.END, display_line)
+                    log_widget.see(tk.END)
+                    break
                 line = ser.readline().decode('utf-8').strip()
                 if line:
                     values = line.split('\t')
+                    timep = float(values[0])
+                    display_line = ""
                     if len(values) == 11:
-                        epoch_tt = time.time()
-
-                        # Store raw values
-                        raw_row = [epoch_tt] + values
-                        raw_buffer.append(raw_row)
+                        timep = float(values[0])
+                        raw_buffer.append(values)
 
                         try:
-                            # Try calibration
                             calibrated = calibrate(values)
-                            
-                            # Basic validation (optional): check if length and type are as expected
-                            if not isinstance(calibrated, list) or len(calibrated) < 8:
-                                raise ValueError("Calibration returned unexpected result")
-
-                        except Exception as e:
-                            print(f"Calibration failed at {epoch_tt:.3f}, using raw values. Error: {e}")
-                            # Use raw values, converting them to float
-                            try:
-                                calibrated = list(map(float, values))
-                            except ValueError:
-                                print(f"Invalid raw data format at {epoch_tt:.3f}, skipping this line.")
-                                continue  # skip this line entirely if raw values are invalid
-
-                            # Proceed with data handling
-                            calib_row = [epoch_tt] + calibrated
-                            calib_buffer.append(calib_row)
-                            display_line = f"{epoch_tt:.3f}\t{'\t'.join(map(str, calibrated))}\n"
-
-                            # Buffer for plotting
-                            temp_c = calibrated[1]
-                            acc_x, acc_y, acc_z = calibrated[2:5]
-                            mag_x, mag_y, mag_z = calibrated[5:8]
+                            calib_buffer.append(calibrated)
+                            display_line = line + '\n'  # just show raw
 
                             data_buffer.append({
-                                "time": epoch_tt,
-                                "acc_x": acc_x,
-                                "acc_y": acc_y,
-                                "acc_z": acc_z,
-                                "temp": temp_c,
-                                "mag_x": mag_x,
-                                "mag_y": mag_y,
-                                "mag_z": mag_z,
+                                "timep": calibrated[0],
+                                "dist": calibrated[1],
+                                "temp_c": calibrated[2],
+                                "acc_x": calibrated[3],
+                                "acc_y": calibrated[4],
+                                "acc_z": calibrated[5],
+                                "mag_x": calibrated[6],
+                                "mag_y": calibrated[7],
+                                "mag_z": calibrated[8],
+                            })
+
+                        except Exception as e:
+                            print(f"Calibration failed at {timep:.3f}, using raw values. Error: {e}")
+                            try:
+                                calibrated = list(map(float, values))
+                                calib_buffer.append(calibrated)
+                                display_line = line + '\n'
+
+                                # fallback buffer (optional)
+                                data_buffer.append({
+                                    "timep": calibrated[0],
+                                    "dist": calibrated[1],
+                                    "temp_c": calibrated[2],
+                                    "acc_x": calibrated[3],
+                                    "acc_y": calibrated[4],
+                                    "acc_z": calibrated[5],
+                                    "mag_x": calibrated[6],
+                                    "mag_y": calibrated[7],
+                                    "mag_z": calibrated[8],
                                 })
 
-                        except ValueError as ve:
-                            display_line = f"[Calibration Error] {ve} | Line: {line}\n"
-                    else:
-                        display_line = f"[Malformed] {line}\n"
+                            except ValueError:
+                                print(f"Invalid raw data format at {timep:.3f}, skipping this line.")
+                                continue
 
                     log_widget.insert(tk.END, display_line)
                     log_widget.see(tk.END)
@@ -171,7 +173,7 @@ def create_plots(root):
     global data_buffer
 
     # Setup matplotlib figure with 3 subplots
-    fig = Figure(figsize=(8, 6), dpi=100)
+    fig = Figure(figsize=(12, 8), dpi=100)
 
     ax1 = fig.add_subplot(311)  # Temperature
     ax2 = fig.add_subplot(312)  # Acceleration
@@ -189,7 +191,7 @@ def create_plots(root):
     # Configure plots
     for ax in [ax1, ax2, ax3]:
         ax.grid(True)
-        ax.legend(loc='upper right')
+        ax.legend(loc='center left')
 
     ax1.set_ylabel("Temp (°C)")
     ax2.set_ylabel("Acc (g)")
@@ -203,8 +205,8 @@ def create_plots(root):
             root.after(200, update_plot)
             return
 
-        times = [d["time"] for d in data_buffer]
-        temps = [d["temp"] for d in data_buffer]
+        times = [d["timep"] for d in data_buffer]
+        temps = [d["temp_c"] for d in data_buffer]
 
         acc_x = [d["acc_x"] for d in data_buffer]
         acc_y = [d["acc_y"] for d in data_buffer]
@@ -231,7 +233,7 @@ def create_plots(root):
             ax.autoscale_view()
 
         canvas.draw()
-        root.after(50, update_plot)
+        root.after(200, update_plot)
 
     update_plot()
 
@@ -250,7 +252,7 @@ def start_gui():
     root = tk.Tk()
     root.title("CanSat Logger + Command Sender")
 
-    log_widget = scrolledtext.ScrolledText(root, width=100, height=30)
+    log_widget = scrolledtext.ScrolledText(root, width=100, height=10)
     log_widget.pack(padx=10, pady=10)
 
     command_frame = tk.Frame(root)

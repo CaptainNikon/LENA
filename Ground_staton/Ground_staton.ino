@@ -9,7 +9,7 @@
 #include <Adafruit_SSD1306.h>
 
 // Radio Setup
-RF24 radio(9, 8); // CE, CSN
+RF24 radio(7, 8); // CE, CSN
 byte adress_g[7] = "Ground";
 byte adress_c[6] = "Canst";
 
@@ -45,7 +45,7 @@ struct __attribute__((packed)) Measurement_struct
   uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   float magX, magY, magZ;
-} ;
+};
 
 
 struct Ground_struct
