@@ -54,9 +54,9 @@ def calibrate(values):
         calibrated_acc = Clbmtrx_acc @ raw_acc 
         acc_x_c, acc_y_c, acc_z_c = calibrated_acc
         
-        mag_x = float(values[6])#*MAG_SCALE
-        mag_y = float(values[7])#*MAG_SCALE
-        mag_z = float(values[8])#*MAG_SCALE
+        mag_x = float(values[6])*MAG_SCALE
+        mag_y = float(values[7])*MAG_SCALE
+        mag_z = float(values[8])*MAG_SCALE
         ground_t = float(values[9])
         ground_h = 0.858*float(values[10])+0.005
     except Exception as e:
