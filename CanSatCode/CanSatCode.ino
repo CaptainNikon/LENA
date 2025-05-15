@@ -67,8 +67,8 @@ struct __attribute__((packed)) Measurement_struct
 	uint8 distance = 0;
 	uint16 temp = 0;
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
-	float calX = 0, calY = 0, calZ = 0;
-	//int16 calx = 0, calY = 0, calZ=0; if we use the raw data
+	//float calX = 0, calY = 0, calZ = 0;
+	int16 calX = 0, calY = 0, calZ=0; //if we use the raw data
 };
 struct Data_struct
 {
@@ -345,6 +345,7 @@ void Measurement_accelerometer()
 	Measurement.accelerometer_Z = Z_out;
 }
 
+/*
 void Measurement_hall_effect()
 {
 	sensors_event_t event;
@@ -360,9 +361,10 @@ void Measurement_hall_effect()
 	Measurement.calY = rawY;
 	Measurement.calZ = rawZ;
 }
+*/
 
 //This might be the way to get raw data from the accelerometer
-/*
+
 void Measurement_hall_effect()
 {
 	mag.read();  // Triggers I2C read, stores values in mag.raw
@@ -375,7 +377,7 @@ void Measurement_hall_effect()
 	Measurement.calY = rawY;
 	Measurement.calZ = rawZ;
 }
-*/
+
 
 
 

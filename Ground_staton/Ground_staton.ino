@@ -44,7 +44,7 @@ struct __attribute__((packed)) Measurement_struct
   uint8_t distance;
   uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
-  float magX, magY, magZ;
+  int16_t magX, magY, magZ;
 };
 
 
