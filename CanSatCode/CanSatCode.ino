@@ -64,10 +64,10 @@ struct CanSat_struct
 // __attribute__((packed)) 
 struct __attribute__((packed)) Measurement_struct
 {
-	uint8 distance = 0; // Stored as 0.1 cm
+	uint8 distance = 0;
 	uint16 temp = 0;
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
-	float calX = 0, calY = 0, calZ = 0;
+	int16 calX = 0, calY = 0, calZ=0;
 };
 struct Data_struct
 {
@@ -203,8 +203,8 @@ void loop()
 
 	// Take the measurement
 	Measurement_Ultrasonic();
-    Measurement_accelerometer();
-    Measurement_hall_effect();
+  Measurement_accelerometer();
+  Measurement_hall_effect();
 	Measurement_DS18B20();
 
 	// Move the Measurement to Data
@@ -218,8 +218,6 @@ void loop()
 	// delay(300);
 	++CanSat.loop_count;
 }
-
-  
 
 }
 
@@ -351,25 +349,26 @@ void Measurement_accelerometer()
 	Measurement.accelerometer_Z = Z_out;
 }
 
+//This might be the way to get raw data from the accelerometer
+
 void Measurement_hall_effect()
 {
+	mag.read();  // Triggers I2C read, stores values in mag.raw
 
-	sensors_event_t event;
-	mag.getEvent(&event);
-
-	// Raw readings in microteslas (µT)
-	float rawX = event.magnetic.x;
-	float rawY = event.magnetic.y;
-	float rawZ = event.magnetic.z;
-
-	// Simple hard iron offset calibration
+	int16_t rawX = mag.raw.x;
+	int16_t rawY = mag.raw.y;
+	int16_t rawZ = mag.raw.z;
 
 	Measurement.calX = rawX;
 	Measurement.calY = rawY;
 	Measurement.calZ = rawZ;
-
-
 }
+
+
+
+
+
+
 void Servo_move(){
 
   //myservo.write(CanSat.Servo_pos);              // tell servo to go to position in variable 'pos'

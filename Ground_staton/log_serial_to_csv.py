@@ -24,6 +24,8 @@ FLUSH_THRESHOLD = 10 # Save every n lines
 raw_filename = 'log_raw_output.csv'
 calib_filename = 'log_calibrated_output.csv'
 
+MAG_SCALE = 0.15  # µT per LSB, based on the adafruit library
+
 #buffer for plotting 
 plot_length = 100
 data_buffer = deque(maxlen=plot_length)
@@ -52,9 +54,9 @@ def calibrate(values):
         calibrated_acc = Clbmtrx_acc @ raw_acc 
         acc_x_c, acc_y_c, acc_z_c = calibrated_acc
         
-        mag_x = float(values[6])
-        mag_y = float(values[7])
-        mag_z = float(values[8])
+        mag_x = float(values[6])*MAG_SCALE
+        mag_y = float(values[7])*MAG_SCALE
+        mag_z = float(values[8])*MAG_SCALE
         ground_t = float(values[9])
         ground_h = 0.858*float(values[10])+0.005
     except Exception as e:
