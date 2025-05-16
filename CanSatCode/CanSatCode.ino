@@ -4,12 +4,14 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-#include <DHT.h>			   // Required header
+
 #include <OneWire.h>		   // Required header
 #include <DallasTemperature.h> // Required header
 #include <Wire.h>			   // Wire library - used for I2C communication
 #include <Adafruit_LIS2MDL.h>
 #include <Adafruit_Sensor.h>
+#include <printf.h>
+
 //#include <Servo.h>
 
 // Defins the data storage size in bytes
@@ -64,12 +66,12 @@ struct CanSat_struct
 // __attribute__((packed)) 
 struct __attribute__((packed)) Measurement_struct
 {
+	uint16 time=0;
 	uint8 distance = 0;
 	uint16 temp = 0;
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
 	int16 calX = 0, calY = 0, calZ=0;
 };
-
 struct Data_struct
 {
 	uint16 first_entry = 0;	 // First entries with data
@@ -83,8 +85,9 @@ CanSat_struct CanSat;
 Data_struct Data;
 
 // Decleration of function
-void My_Radio();
-void Measurement_DHT();
+void Radio_send();
+void Radio_read();
+void Measurement_DS18B20();
 void Measurement_Ultrasonic();
 void Measurement_accelerometer();
 void Measurement_hall_effect();
@@ -94,7 +97,6 @@ void Servo_move();
 void Init_Radio();
 void Init_CanSat();
 void Init_Ultrasonic();
-void Init_dht();
 void Init_accelerometer();
 void Init_hall_effect();
 void Init_servo();
@@ -125,6 +127,8 @@ void Data_first_delete()
 
 void Move_meassurment_to_data()
 {
+	Measurement.time = millis()/10;
+
 	// Move all the meassurments from the Meassurment struct to last entris in data
 	uint16 size = sizeof(Measurement_struct);
 
@@ -152,15 +156,16 @@ void setup()
 	Init_CanSat(); // Dose nothing right now
 	Init_Radio();
 	Init_Ultrasonic();
-	Init_DS18B20();
+	
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
-  Init_servo();
+	Init_servo();
 }
 
 void print_values()
 {
-	Serial.print("=========== new ===========\n");
+	Serial.print(Measurement.time);
+	Serial.print("     =========== new ===========\n");
 	Serial.print("distance\t");
 	Serial.print(Measurement.distance);
 	Serial.print("   temp\t");
@@ -199,28 +204,29 @@ void loop()
     loop_timer_now = millis(); 
     loop_counter = 0;
     loop_timer = 1/((loop_timer_now - previous_millis) / 20000.0); 
+    Serial.print("Messurment pull rate: ");
     Serial.println(loop_timer);
   }
 
 	// Take the measurement
 	Measurement_Ultrasonic();
-  Measurement_accelerometer();
-  Measurement_hall_effect();
+	Measurement_accelerometer();
+	Measurement_hall_effect();
 	Measurement_DS18B20();
+	//print_values();
 
 	// Move the Measurement to Data
 	Move_meassurment_to_data();
 
 	// Radio over the data from Data
-	My_Radio();
-
+	Radio_send();
+	Radio_read();
   //Servo_move();
 
-	// delay(300);
-	++CanSat.loop_count;
+	delay(100);
+	
 }
 
-}
 
 void Init_Radio()
 {
@@ -233,15 +239,21 @@ void Init_Radio()
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21); // set the channel to 21
 	radio.openWritingPipe(address_g);
-	radio.setAutoAck(1);
+	radio.setAutoAck(true);
 	radio.setRetries(1, 15);
+	radio.setCRCLength(RF24_CRC_16);
+
 
 
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
 
-  radio.openReadingPipe(1, address_c);
+	radio.openReadingPipe(1, address_c);
+	radio.startListening();
+
+	printf_begin();
+	radio.printPrettyDetails();
  
 }
 
@@ -254,7 +266,7 @@ void Init_Ultrasonic()
 void Init_DS18B20()
 {
 	sensors.begin(); // start the sensor (wiring)
-  sensors.setResolution(8);
+	sensors.setResolution(8);
 }
 void Init_CanSat()
 {
@@ -365,38 +377,40 @@ void Measurement_hall_effect()
 	Measurement.calZ = rawZ;
 }
 
-
 void Servo_move(){
 
   //myservo.write(CanSat.Servo_pos);              // tell servo to go to position in variable 'pos'
 
 }
 
-void My_Radio()
+void Radio_send()
 {
-  char comand;
+	
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
-  //radio.stopListening();
+	radio.stopListening();
+	//radio.stopListening();
 	// radio.write(&(Data.data[Data.first_entry]), size);
-	radio.write(&(Measurement), sizeof(Measurement_struct));
-  
+	bool sent=radio.write(&(Measurement), sizeof(Measurement_struct));
+	radio.startListening();
+	if(sent){
+		Serial.println("ack");
+	}else{
+		Serial.println("fuck");
+	}
 
-  /*
-  radio.startListening();
-  
-  delay(30);
-  if (radio.available()){
-    radio.read(&comand, sizeof(comand) + 1);
-  
-    Serial.write(comand);
-    Serial.write("\n");
-  }
-	// We need to check if the message got recived
-	// end if it did, delete the entry, but for now we assume it worked
-*/
-	// Delete entry
 	Data_first_delete();
 }
-
+void Radio_read()
+{
+    if ( radio.available() ) {
+        radio.read( &CanSat.comands, sizeof(CanSat.comands) );
+        
+		Serial.print("Comand: ");
+		Serial.write(CanSat.comands[0]);
+		Serial.println();
+		//Serial.print("\n");
+		Serial.println(__LINE__);
+    }
+}
