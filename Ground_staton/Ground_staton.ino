@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <printf.h>
 
 // Radio Setup
 RF24 radio(7, 8); // CE, CSN
@@ -42,7 +43,7 @@ const unsigned long updateInterval = 10000;
 // Setup the data structures for ground and CanSat
 struct __attribute__((packed)) Measurement_struct
 {
-
+  uint16_t time;
   uint8_t distance;
   uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
@@ -78,7 +79,7 @@ void Init_display()
 
 
 void debug_print() {
-  Serial.print(millis()); Serial.print("\t");  // Timestamp
+  Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
   Serial.print(Measurement.distance); Serial.print("\t");
   Serial.print(Measurement.temp); Serial.print("\t");  // Still in tenths of °C
   Serial.print(Measurement.accelerometer_X); Serial.print("\t");  // Raw ints
@@ -102,15 +103,17 @@ void setup()
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//   radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21);
-	radio.setAutoAck(1);
+	radio.setAutoAck(true);
 	// radio.setPALevel(RF24_PA_LOW);
 	radio.setDataRate(RF24_250KBPS);
+  radio.openWritingPipe(adress_c);
 	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
-  radio.setAutoAck(1);
 	radio.setRetries(1, 15);
+  radio.setCRCLength(RF24_CRC_16);
 	radio.startListening();
-
+  printf_begin();
+  radio.printPrettyDetails();
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
@@ -128,7 +131,7 @@ void loop() {
   if (radio.available()) {
     radio.read(&Measurement, sizeof(Measurement));
     // Send one clean tab-separated line over serial
-      Serial.print(millis()); Serial.print("\t");  // Timestamp
+      Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
       Serial.print(Measurement.distance); Serial.print("\t");
       Serial.print(Measurement.temp); Serial.print("\t");  // Still in tenths of °C
       Serial.print(Measurement.accelerometer_X); Serial.print("\t");  // Raw ints
@@ -147,15 +150,17 @@ void loop() {
   command.trim();  // Remove whitespace or newline
 
   if (command.length() == 1) {
-    char c = command.charAt(0);  // Extract the single character
-    Serial.print("Command received: ");
-    Serial.println(c);
+    char c = command.charAt(0);
+    radio.stopListening();
+    bool success = radio.write(&c, 1);
+    radio.startListening();
 
-    radio.stopListening();                // switch to TX mode
-    bool success = radio.write(&c, 1);    // send 1 byte (the char)
-    radio.startListening();               // back to RX mode
-
-    Serial.println(success ? "Command sent to CanSat" : "Send failed");
+    if (success == 0) {
+      Serial.println("Not Nice");
+    }
+    else {
+      Serial.println("nice");
+    }
   } else {
     Serial.println("Invalid command: must be 1 char");
   }}
