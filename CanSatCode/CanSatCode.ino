@@ -69,6 +69,7 @@ struct __attribute__((packed)) Measurement_struct
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
 	int16 calX = 0, calY = 0, calZ=0;
 };
+
 struct Data_struct
 {
 	uint16 first_entry = 0;	 // First entries with data
@@ -363,10 +364,6 @@ void Measurement_hall_effect()
 	Measurement.calY = rawY;
 	Measurement.calZ = rawZ;
 }
-
-
-
-
 
 
 void Servo_move(){
