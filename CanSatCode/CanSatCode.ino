@@ -12,7 +12,6 @@
 #include <Adafruit_Sensor.h>
 #include <printf.h>
 
-
 // #include <Servo.h>
 
 // Defins the data storage size in bytes
@@ -28,9 +27,9 @@
 #define DS18B20_PIN 2 // Dataline is plugged into digital pin 2
 int ADXL345 = 0x1D;	  // Adress for DRFduino
 
-RF24 radio(CE_PIN, SPI_Radio, 1000000);		 // CE, CSN
-OneWire oneWire(DS18B20_PIN);		 // setup the oneWire to communicate with sensor
-DallasTemperature sensors(&oneWire); // send the oneWire reference to DallasTemperature
+RF24 radio(CE_PIN, SPI_Radio, 1000000); // CE, CSN
+OneWire oneWire(DS18B20_PIN);			// setup the oneWire to communicate with sensor
+DallasTemperature sensors(&oneWire);	// send the oneWire reference to DallasTemperature
 Adafruit_LIS2MDL mag = Adafruit_LIS2MDL();
 // Servo myservo;  // create servo object to control a servo
 
@@ -49,7 +48,6 @@ unsigned long lastPrintTime = 0;
 
 unsigned int burstMode = 100;  // Sends data 10 times per sec
 unsigned int surveyMode = 500; // Sends data 2 times per sec
-
 
 // CanSat structure
 struct CanSat_struct
@@ -126,22 +124,23 @@ void Data_first_delete()
 	// Sett the memory to zero, byte by byte
 	for (int i = 0; i < size; i++)
 	{
-		Data.data[(i + Data.first_entry) % STORAGE_SIZE] = 0;
+		Data.data[(i + Data.first_entry)] = 0;
 	}
 
 	// move first_entry with the size, to the new first entry
 	Data.first_entry = (Data.first_entry + size);
-	if(Data.first_entry>STORAGE_SIZE){
-		Data.first_entry=0;
-	} 
+	if (Data.first_entry > STORAGE_SIZE)
+	{
+		Data.first_entry = 0;
+	}
 }
 
 void Move_meassurment_to_data()
 {
 	Measurement.time = millis() / 10;
-	Measurement.accelerometer_X=1111;
-	//Serial.println(Measurement.time);
-	// Move all the meassurments from the Meassurment struct to last entris in data
+	// Measurement.accelerometer_X=1111;
+	// Serial.println(Measurement.time);
+	//  Move all the meassurments from the Meassurment struct to last entris in data
 	uint16 size = sizeof(Measurement_struct);
 
 	// pointer to measurment values
@@ -154,7 +153,7 @@ void Move_meassurment_to_data()
 	}
 	for (uint16 i = 0; i < size; i++)
 	{
-		Data.data[(i + Data.end_entry) % STORAGE_SIZE] = Measurment_ptr[i];
+		Data.data[(i + Data.end_entry)] = Measurment_ptr[i];
 	}
 
 	// Move end pointer to next entry
@@ -168,10 +167,10 @@ void setup()
 	// Initialization function
 	Init_CanSat(); // Dose nothing right now
 	Init_Radio();
-	// Init_Ultrasonic();
+	Init_Ultrasonic();
 
-	// Init_accelerometer(); // This function crashes
-	// Init_hall_effect();
+	Init_accelerometer(); // This function crashes
+	Init_hall_effect();
 	// Init_servo();
 }
 
@@ -206,7 +205,7 @@ long previous_millis = 0;	 // holds the previous millis
 float loop_timer = 0;		 // holds difference (loop_timer_now - previous_millis) = total execution time
 int loop_test_times = 20000; // Run loop 20000 times then calculate time
 
-unsigned long previousMillis = 0;  // will store last time LED was updated
+unsigned long previousMillis = 0; // will store last time LED was updated
 // constants won't change:
 const long interval = 250;
 
@@ -214,19 +213,17 @@ void loop()
 {
 	loop_counter++;
 
-
 	unsigned long currentMillis = millis();
-	if (currentMillis - previousMillis >= interval) {
+	if (currentMillis - previousMillis >= interval)
+	{
 		Serial.print("Time:\t");
 		Serial.println(Measurement.time);
 
-		loop_timer = (((float)loop_counter)*1000.0) / (currentMillis - previousMillis) ;
+		loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
 		Serial.print("Messurment pull rate: ");
 		Serial.println(loop_timer);
 		loop_counter = 0;
 		previousMillis = currentMillis;
-
-
 
 		// Take the measurement
 		if (CanSat.Sensor_Temprature == true)
@@ -242,11 +239,11 @@ void loop()
 	}
 	if (CanSat.Sensor_Acceleration = true)
 	{
-		// Measurement_accelerometer();
+		Measurement_accelerometer();
 	}
 	if (CanSat.Sensor_Halleffect = true)
 	{
-		// Measurement_hall_effect();
+		Measurement_hall_effect();
 	}
 	// print_values();
 
@@ -256,15 +253,15 @@ void loop()
 	Radio_send();
 	Radio_read();
 	Run_Commands();
-	
+
 	// Servo_move();
 	delay(50);
 }
 
 void Init_Radio()
 {
-	
-	//radio.begin(3000000); // Test this
+
+	// radio.begin(3000000); // Test this
 	radio.begin();
 
 	radio.setDataRate(2); // setting data rate to 250 kbit/s, RF24_250KBPS
@@ -276,7 +273,6 @@ void Init_Radio()
 	radio.setRetries(5, 15);
 	radio.setCRCLength(RF24_CRC_16);
 	radio.enableDynamicPayloads();
-
 
 	//  we have teh chanels 21-30 and 81-90
 
@@ -418,10 +414,11 @@ void Servo_move()
 
 void Radio_send()
 {
-	if(Data.first_entry == Data.end_entry){
-		return;// No data to sent
+	if (Data.first_entry == Data.end_entry)
+	{
+		return; // No data to sent
 	}
-		Serial.print("Sending ");
+	Serial.print("Sending ");
 
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
@@ -439,7 +436,6 @@ void Radio_send()
 	{
 		Serial.println("fuck");
 	}
-
 }
 void Radio_read()
 {
@@ -466,12 +462,12 @@ void Run_Commands()
 		return;
 	}
 	CanSat.commands[0] = toUpperCase(CanSat.commands[0]);
-	
+
 	if (CanSat.commands[0] == 'S')
 	{
 		Serial.println("S");
 		CanSat.commands[1] = toUpperCase(CanSat.commands[1]);
-		
+
 		if (CanSat.commands[1] == 'T')
 		{
 			if (CanSat.commands[2] == '1')
@@ -550,22 +546,3 @@ void Run_Commands()
 	}
 	CanSat.commands[0] = 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
