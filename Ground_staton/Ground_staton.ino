@@ -183,7 +183,7 @@ void loop() {
 
 
 void display_ground() {
-	int precision = 3;
+	int precision = 5;
 	char tempStr[precision + 1];
 	char humStr[precision + 1];
 
