@@ -17,14 +17,12 @@ import os
 serial_port = 'COM3'
 baud_rate = 115200
 
-# Initialization of buffers to save time while saving
+# Initialization of data saving buffers
 raw_buffer = []
 calib_buffer = []
 FLUSH_THRESHOLD = 10 # Save every n lines
 raw_filename = 'log_raw_output.csv'
 calib_filename = 'log_calibrated_output.csv'
-
-MAG_SCALE = 0.15  # µT per LSB, based on the adafruit library
 
 #buffer for plotting 
 plot_length = 100
@@ -37,31 +35,77 @@ Clbmtrx_acc = np.array([
     [ 0.0363,  0.0023,  1.0283, -0.0195]
 ])
 
-# GLOBAL STATE
+# Conversion from raw to value magnetometer (µT per LSB)
+MAG_SCALE = 0.15
+
+# GLOBAL STATES
 ser = None
 running = True
 
 def calibrate(values):
     global Clbmtrx_acc
     try:
-        timep = float(values[0])
-        distance = float(values[1])
-        temp_c = float(values[2])*0.1
+        timep = float(values[0])/100
+        distance = 0.919*float(values[1])+0.625 #Calibrated
+        temp_c = 0.961*(float(values[2])*0.1)+0.641 #Calibrated
         acc_x = float(values[3]) * 0.015748
         acc_y = float(values[4]) * 0.015748
         acc_z = float(values[5]) * 0.015748
         raw_acc = np.array([acc_x, acc_y, acc_z, 1.0])
-        calibrated_acc = Clbmtrx_acc @ raw_acc 
-        acc_x_c, acc_y_c, acc_z_c = calibrated_acc
+        calibrated_acc = Clbmtrx_acc @ raw_acc # Calibrated
+        acc_x_c, acc_y_c, acc_z_c = calibrated_acc #Calibrated
         
         mag_x = float(values[6])*MAG_SCALE
         mag_y = float(values[7])*MAG_SCALE
         mag_z = float(values[8])*MAG_SCALE
-        ground_t = float(values[9])
-        ground_h = 0.858*float(values[10])+0.005
+        ground_t = 1.8079*float(values[9])-28.5537 # Calibrated
+        ground_h = 0.858*float(values[10])+0.005 #Calibrated
     except Exception as e:
         raise ValueError(f"Calibration failed: {e}")
     return [timep, distance, temp_c, acc_x_c, acc_y_c, acc_z_c, mag_x, mag_y, mag_z, ground_t, ground_h]
+
+    
+def process_line(values, line, raw_buffer, calib_buffer, data_buffer, log_widget):
+    try:
+        timep = float(values[0])
+        raw_buffer.append(values)
+
+        try:
+            calibrated = calibrate(values)
+        except Exception as e:
+            print(f"Calibration failed at {timep:.3f}, using raw values. Error: {e}")
+            try:
+                calibrated = list(map(float, values))
+            except ValueError:
+                print(f"Invalid raw data format at {values[0]}, skipping this line.")
+                return None
+
+        calib_buffer.append(calibrated)
+
+        data_buffer.append({
+            "timep": calibrated[0],
+            "dist": calibrated[1],
+            "temp_c": calibrated[2],
+            "acc_x": calibrated[3],
+            "acc_y": calibrated[4],
+            "acc_z": calibrated[5],
+            "mag_x": calibrated[6],
+            "mag_y": calibrated[7],
+            "mag_z": calibrated[8],
+        })
+
+        display_line = line + '\n'
+        log_widget.insert(tk.END, display_line)
+        log_widget.see(tk.END)
+
+        return True
+
+    except ValueError:
+        print(f"Ignored malformed sensor line: {line}")
+    except Exception as e:
+        print(f"[Unexpected error in process_line] {e}")
+    return None
+
 
 # === SERIAL READER THREAD ===
 def serial_reader(log_widget):
@@ -82,69 +126,26 @@ def serial_reader(log_widget):
         while running:
             try:
                 if ser is None or not ser.is_open:
-                    display_line = "[Error] Serial port is not open.\n"
-                    log_widget.insert(tk.END, display_line)
+                    log_widget.insert(tk.END, "[Error] Serial port is not open.\n")
                     log_widget.see(tk.END)
                     break
-                line = ser.readline().decode('utf-8').strip()
-                if line:
-                    values = line.split('\t')
-                    timep = float(values[0])
-                    display_line = ""
-                    if len(values) == 11:
-                        timep = float(values[0])
-                        raw_buffer.append(values)
 
-                        try:
-                            calibrated = calibrate(values)
-                            calib_buffer.append(calibrated)
-                            display_line = line + '\n'  # just show raw
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                if not line:
+                    continue
 
-                            data_buffer.append({
-                                "timep": calibrated[0],
-                                "dist": calibrated[1],
-                                "temp_c": calibrated[2],
-                                "acc_x": calibrated[3],
-                                "acc_y": calibrated[4],
-                                "acc_z": calibrated[5],
-                                "mag_x": calibrated[6],
-                                "mag_y": calibrated[7],
-                                "mag_z": calibrated[8],
-                            })
+                values = line.split('\t')
 
-                        except Exception as e:
-                            print(f"Calibration failed at {timep:.3f}, using raw values. Error: {e}")
-                            try:
-                                calibrated = list(map(float, values))
-                                calib_buffer.append(calibrated)
-                                display_line = line + '\n'
+                if len(values) == 11:
+                    success = process_line(values, line, raw_buffer, calib_buffer, data_buffer, log_widget)
 
-                                # fallback buffer (optional)
-                                data_buffer.append({
-                                    "timep": calibrated[0],
-                                    "dist": calibrated[1],
-                                    "temp_c": calibrated[2],
-                                    "acc_x": calibrated[3],
-                                    "acc_y": calibrated[4],
-                                    "acc_z": calibrated[5],
-                                    "mag_x": calibrated[6],
-                                    "mag_y": calibrated[7],
-                                    "mag_z": calibrated[8],
-                                })
-
-                            except ValueError:
-                                print(f"Invalid raw data format at {timep:.3f}, skipping this line.")
-                                continue
-
-                    log_widget.insert(tk.END, display_line)
-                    log_widget.see(tk.END)
-
-                    # Write buffer to file after threshold
-                    if len(raw_buffer) >= FLUSH_THRESHOLD:
+                    if success and len(raw_buffer) >= FLUSH_THRESHOLD:
                         raw_writer.writerows(raw_buffer)
                         calib_writer.writerows(calib_buffer)
                         raw_buffer.clear()
                         calib_buffer.clear()
+                else:
+                    print(f"Ignored non-sensor line: {line}")
 
             except Exception as e:
                 log_widget.insert(tk.END, f"[Error] {e}\n")
