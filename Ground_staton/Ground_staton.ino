@@ -10,7 +10,7 @@
 #include <printf.h>
 
 // Radio Setup
-RF24 radio(7, 8); // CE, CSN
+RF24 radio( 7, 8, 1000000); // CE, CSN
 byte adress_g[7] = "Ground";
 byte adress_c[6] = "Canst";
 
@@ -45,7 +45,6 @@ struct __attribute__((packed)) Measurement_struct
 {
   uint16_t time;
   uint8_t distance;
-  uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   int16_t magX, magY, magZ;
 };
@@ -99,21 +98,26 @@ void setup()
 	while (!Serial)
 		;
 	Serial.begin(115200);
+	//radio.begin(3000000); // New line!
 	radio.begin();
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//   radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21);
 	radio.setAutoAck(true);
 	// radio.setPALevel(RF24_PA_LOW);
-	radio.setDataRate(RF24_250KBPS);
+	radio.setDataRate(2);
   radio.openWritingPipe(adress_c);
 	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
+	radio.enableDynamicPayloads();
+
 	radio.setRetries(1, 15);
   radio.setCRCLength(RF24_CRC_16);
 	radio.startListening();
   printf_begin();
-  radio.printPrettyDetails();
+  radio.printPrettyDetails();	
+  radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
+
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
@@ -128,8 +132,10 @@ void setup()
 
 void loop() {
   // Always prioritize reading from the radio
-  if (radio.available()) {
+  uint8_t pipe;
+  if (radio.available(&pipe)) {
     radio.read(&Measurement, sizeof(Measurement));
+    radio.flush_rx();
     // Send one clean tab-separated line over serial
       Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
       Serial.print(Measurement.distance); Serial.print("\t");
@@ -142,6 +148,7 @@ void loop() {
       Serial.print(Measurement.magZ); Serial.print("\t");
       Serial.print(Ground.temperature); Serial.print("\t");
       Serial.println(Ground.humidity);
+	    delay(50);
   }
   
    // Check for incoming serial command
