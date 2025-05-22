@@ -45,6 +45,7 @@ struct __attribute__((packed)) Measurement_struct
 {
   uint16_t time;
   uint8_t distance;
+  uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   int16_t magX, magY, magZ;
 };
@@ -105,7 +106,7 @@ void setup()
 	radio.setChannel(21);
 	radio.setAutoAck(true);
 	// radio.setPALevel(RF24_PA_LOW);
-	radio.setDataRate(2);
+	radio.setDataRate(RF24_250KBPS);
   radio.openWritingPipe(adress_c);
 	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
@@ -116,8 +117,7 @@ void setup()
 	radio.startListening();
   printf_begin();
   radio.printPrettyDetails();	
-  radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
-
+  radio.setPALevel(RF24_PA_LOW);
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
@@ -135,7 +135,7 @@ void loop() {
   uint8_t pipe;
   if (radio.available(&pipe)) {
     radio.read(&Measurement, sizeof(Measurement));
-    radio.flush_rx();
+    //radio.flush_rx();
     // Send one clean tab-separated line over serial
       Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
       Serial.print(Measurement.distance); Serial.print("\t");
