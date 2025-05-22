@@ -72,11 +72,11 @@ struct CanSat_struct
 // __attribute__((packed))
 struct __attribute__((packed)) Measurement_struct
 {
-	uint8_t distance = 0;
-	int16_t accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
-	int16_t calX = 0, calY = 0, calZ = 0;
-	uint16_t time = 0;
-	uint16_t temp = 0;
+	uint16 time=0;
+	uint8 distance = 0;
+	uint16 temp = 0;
+	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
+	int16 calX = 0, calY = 0, calZ=0;
 };
 struct Data_struct
 {
@@ -141,6 +141,7 @@ void Move_meassurment_to_data()
 	// Measurement.accelerometer_X=1111;
 	// Serial.println(Measurement.time);
 	//  Move all the meassurments from the Meassurment struct to last entris in data
+
 	uint16 size = sizeof(Measurement_struct);
 
 	// pointer to measurment values
@@ -168,10 +169,10 @@ void setup()
 	Init_CanSat(); // Dose nothing right now
 	Init_Radio();
 	Init_Ultrasonic();
-
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
 	// Init_servo();
+
 }
 
 void print_values()
@@ -212,12 +213,13 @@ const long interval = 250;
 void loop()
 {
 	loop_counter++;
-
+  
 	unsigned long currentMillis = millis();
 	if (currentMillis - previousMillis >= interval)
 	{
 		Serial.print("Time:\t");
 		Serial.println(Measurement.time);
+
 
 		loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
 		Serial.print("Messurment pull rate: ");
@@ -257,6 +259,7 @@ void loop()
 	// Servo_move();
 	delay(50);
 }
+
 
 void Init_Radio()
 {
@@ -391,11 +394,11 @@ void Measurement_accelerometer()
 	Measurement.accelerometer_Z = Z_out;
 }
 
-// This might be the way to get raw data from the accelerometer
 
+// This might be the way to get raw data from the accelerometer
 void Measurement_hall_effect()
 {
-	mag.read(); // Triggers I2C read, stores values in mag.raw
+	mag.read(); 
 
 	int16_t rawX = mag.raw.x;
 	int16_t rawY = mag.raw.y;
@@ -414,11 +417,13 @@ void Servo_move()
 
 void Radio_send()
 {
+
 	if (Data.first_entry == Data.end_entry)
 	{
 		return; // No data to sent
 	}
 	Serial.print("Sending ");
+
 
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);

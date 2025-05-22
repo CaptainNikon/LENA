@@ -43,11 +43,10 @@ const unsigned long updateInterval = 10000;
 // Setup the data structures for ground and CanSat
 struct __attribute__((packed)) Measurement_struct
 {
+  uint16_t time;
   uint8_t distance;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   int16_t magX, magY, magZ;
-  uint16_t time;
-  uint16_t temp;
 };
 
 
@@ -111,6 +110,7 @@ void setup()
 	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
 	radio.enableDynamicPayloads();
+
 	radio.setRetries(1, 15);
   radio.setCRCLength(RF24_CRC_16);
 	radio.startListening();
@@ -190,7 +190,7 @@ void loop() {
 
 
 void display_ground() {
-	int precision = 3;
+	int precision = 5;
 	char tempStr[precision + 1];
 	char humStr[precision + 1];
 
