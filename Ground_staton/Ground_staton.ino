@@ -7,9 +7,10 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <printf.h>
 
 // Radio Setup
-RF24 radio(7, 8); // CE, CSN
+RF24 radio( 7, 8, 1000000); // CE, CSN
 byte adress_g[7] = "Ground";
 byte adress_c[6] = "Canst";
 
@@ -20,18 +21,19 @@ byte adress_c[6] = "Canst";
 #define int16 int16_t
 
 // DHT variables
-#define PIN_DHT 2 // DHT data pin
+#define PIN_DHT 2	  // DHT data pin
 #define DHTType DHT11 // Specify the type of DHT
 DHT dht = DHT(PIN_DHT, DHTType);
 
 // Screen Setup
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
-#define OLED_RESET     -1
+#define OLED_RESET -1
 int dispupdate = 0;
 unsigned long lastDisplayTime = 0;
 const unsigned long displayInterval = 1000; // ms
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 
 //Update variables
 unsigned long lastUpdateTime = 0;
@@ -41,8 +43,8 @@ const unsigned long updateInterval = 10000;
 // Setup the data structures for ground and CanSat
 struct __attribute__((packed)) Measurement_struct
 {
+  uint16_t time;
   uint8_t distance;
-  uint16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   int16_t magX, magY, magZ;
 };
@@ -57,26 +59,26 @@ struct Ground_struct
 Measurement_struct Measurement;
 Ground_struct Ground;
 
-
 // Initialization functions
 void Init_dht()
 {
 	dht.begin();
 }
 
-void Init_display() {
+void Init_display()
+{
 	display.clearDisplay();
-  display.setTextSize(1);             // Normal 1:1 pixel scale
-  display.setTextColor(SSD1306_WHITE); // Draw white text
-  display.setCursor(0, 10);            // Position (x, y)
-  display.print("Starting...");
-  display.display();
+	display.setTextSize(1);				 // Normal 1:1 pixel scale
+	display.setTextColor(SSD1306_WHITE); // Draw white text
+	display.setCursor(0, 10);			 // Position (x, y)
+	display.print("Starting...");
+	display.display();
 	delay(100);
 }
 
 
 void debug_print() {
-  Serial.print(millis()); Serial.print("\t");  // Timestamp
+  Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
   Serial.print(Measurement.distance); Serial.print("\t");
   Serial.print(Measurement.temp); Serial.print("\t");  // Still in tenths of °C
   Serial.print(Measurement.accelerometer_X); Serial.print("\t");  // Raw ints
@@ -96,18 +98,25 @@ void setup()
 	while (!Serial)
 		;
 	Serial.begin(115200);
+	//radio.begin(3000000); // New line!
 	radio.begin();
-	//radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
-	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
+	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
+	//   radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21);
-	radio.setAutoAck(1);
-	//radio.setPALevel(RF24_PA_LOW);
-	radio.setDataRate(RF24_250KBPS);
+	radio.setAutoAck(true);
+	// radio.setPALevel(RF24_PA_LOW);
+	radio.setDataRate(2);
+  radio.openWritingPipe(adress_c);
 	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
-  radio.setAutoAck(1);
+	radio.enableDynamicPayloads();
+
 	radio.setRetries(1, 15);
+  radio.setCRCLength(RF24_CRC_16);
 	radio.startListening();
+  printf_begin();
+  radio.printPrettyDetails();	
+  radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
 
 
   // Initialize the display
@@ -116,16 +125,19 @@ void setup()
     for (;;); // Stop if display init fails
   }
 
+
 	Init_display();
-  Init_dht();
+	Init_dht();
 }
 
 void loop() {
   // Always prioritize reading from the radio
-  if (radio.available()) {
+  uint8_t pipe;
+  if (radio.available(&pipe)) {
     radio.read(&Measurement, sizeof(Measurement));
+    radio.flush_rx();
     // Send one clean tab-separated line over serial
-      Serial.print(millis()); Serial.print("\t");  // Timestamp
+      Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
       Serial.print(Measurement.distance); Serial.print("\t");
       Serial.print(Measurement.temp); Serial.print("\t");  // Still in tenths of °C
       Serial.print(Measurement.accelerometer_X); Serial.print("\t");  // Raw ints
@@ -136,6 +148,7 @@ void loop() {
       Serial.print(Measurement.magZ); Serial.print("\t");
       Serial.print(Ground.temperature); Serial.print("\t");
       Serial.println(Ground.humidity);
+	    delay(50);
   }
   
    // Check for incoming serial command
@@ -144,15 +157,17 @@ void loop() {
   command.trim();  // Remove whitespace or newline
 
   if (command.length() == 1) {
-    char c = command.charAt(0);  // Extract the single character
-    Serial.print("Command received: ");
-    Serial.println(c);
+    char c = command.charAt(0);
+    radio.stopListening();
+    bool success = radio.write(&c, 1);
+    radio.startListening();
 
-    radio.stopListening();                // switch to TX mode
-    bool success = radio.write(&c, 1);    // send 1 byte (the char)
-    radio.startListening();               // back to RX mode
-
-    Serial.println(success ? "Command sent to CanSat" : "Send failed");
+    if (success == 0) {
+      Serial.println("Not Nice");
+    }
+    else {
+      Serial.println("nice");
+    }
   } else {
     Serial.println("Invalid command: must be 1 char");
   }}
@@ -175,28 +190,32 @@ void loop() {
 
 
 void display_ground() {
-	int precision = 3;
-  char tempStr[precision+1];
-  char humStr[precision+1];
+	int precision = 5;
+	char tempStr[precision + 1];
+	char humStr[precision + 1];
 
-  // Convert float to string: (value, width, precision, name)
-  dtostrf(Ground.temperature, precision, 0, tempStr);
-  dtostrf(Ground.humidity,    precision, 0, humStr);
+	// Convert float to string: (value, width, precision, name)
+	dtostrf(Ground.temperature, precision, 0, tempStr);
+	dtostrf(Ground.humidity, precision, 0, humStr);
 
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
+	display.clearDisplay();
+	display.setTextSize(1);
+	display.setTextColor(SSD1306_WHITE);
+	display.setCursor(0, 0);
 
-  display.print("T:"); display.print(tempStr); display.print("C|Hum:"); display.print(humStr); display.print("%"); display.print("No:"); 
+	display.print("T:");
+	display.print(tempStr);
+	display.print("C|Hum:");
+	display.print(humStr);
+	display.print("%");
+	display.print("No:");
 	display.println(dispupdate++);
-  display.display();
+	display.display();
 }
-
 
 void Measurement_DHT()
 {
-  Ground.humidity = dht.readHumidity();
+	Ground.humidity = dht.readHumidity();
 	Ground.temperature = dht.readTemperature();
 	if (isnan(Ground.temperature) || isnan(Ground.humidity))
 	{
