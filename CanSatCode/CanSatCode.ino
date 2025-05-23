@@ -389,7 +389,7 @@ void Measurement_Ultrasonic()
 	delayMicroseconds(10);
 	digitalWrite(PIN_Ultrasonic_trig, LOW);
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
-	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH, 12000); //Maximum delay of 12000 when timeout
+	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH,12000); //Maximum delay of 12000 when timeout
 	// Calculating the distance
 	if (duration == 0) {
 		Serial.println("Ultrasonic: No echo (too far or misaligned)");

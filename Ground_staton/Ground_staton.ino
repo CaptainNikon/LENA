@@ -157,19 +157,29 @@ void loop() {
 
   if (command.length() == 1) {
     char c = command.charAt(0);
+    bool success = false;
+
     radio.stopListening();
-    bool success = radio.write(&c, 1);
+
+    for (int attempt = 0; attempt < 3 && !success; attempt++) {
+      success = radio.write(&c, 1);
+      if (!success) {
+        delay(10); // small delay before retry
+      }
+    }
+
     radio.startListening();
 
-    if (success == 0) {
-      Serial.println("Not Nice");
-    }
-    else {
-      Serial.println("nice");
+    if (success) {
+      Serial.println("Command received");
+    } else {
+      Serial.println("Command NOT received after 3 attempts");
     }
   } else {
     Serial.println("Invalid command: must be 1 char");
-  }}
+  }
+}
+
 
 
   // Occasionally sample DHT and update display
