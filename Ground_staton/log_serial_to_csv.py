@@ -67,13 +67,13 @@ def calibrate(values):
     
 def process_line(values, line, raw_buffer, calib_buffer, data_buffer, log_widget):
     try:
-        timep = float(values[0])
+        timeperror= float(values[0])
         raw_buffer.append(values)
 
         try:
             calibrated = calibrate(values)
         except Exception as e:
-            print(f"Calibration failed at {timep:.3f}, using raw values. Error: {e}")
+            print(f"Calibration failed at {timeperror:.3f}, using raw values. Error: {e}")
             try:
                 calibrated = list(map(float, values))
             except ValueError:
@@ -108,7 +108,7 @@ def process_line(values, line, raw_buffer, calib_buffer, data_buffer, log_widget
 
 
 # === SERIAL READER THREAD ===
-def serial_reader(log_widget):
+def serial_reader(value_log, command_log):
     global ser, running, raw_buffer, calib_buffer, raw_filename, calib_filename, data_buffer
 
     with open(raw_filename, mode='w', newline='') as raw_file, \
@@ -126,8 +126,8 @@ def serial_reader(log_widget):
         while running:
             try:
                 if ser is None or not ser.is_open:
-                    log_widget.insert(tk.END, "[Error] Serial port is not open.\n")
-                    log_widget.see(tk.END)
+                    command_log.insert(tk.END, "[Error] Serial port is not open.\n")
+                    command_log.see(tk.END)
                     break
 
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
@@ -135,9 +135,8 @@ def serial_reader(log_widget):
                     continue
 
                 values = line.split('\t')
-
                 if len(values) == 11:
-                    success = process_line(values, line, raw_buffer, calib_buffer, data_buffer, log_widget)
+                    success = process_line(values, line, raw_buffer, calib_buffer, data_buffer, value_log)
 
                     if success and len(raw_buffer) >= FLUSH_THRESHOLD:
                         raw_writer.writerows(raw_buffer)
@@ -145,11 +144,13 @@ def serial_reader(log_widget):
                         raw_buffer.clear()
                         calib_buffer.clear()
                 else:
-                    print(f"Ignored non-sensor line: {line}")
+                    # Log any non-sensor line in the command log window
+                    command_log.insert(tk.END, f"[Info] {line}\n")
+                    command_log.see(tk.END)
 
             except Exception as e:
-                log_widget.insert(tk.END, f"[Error] {e}\n")
-                log_widget.see(tk.END)
+                command_log.insert(tk.END, f"[Error] {e}\n")
+                command_log.see(tk.END) 
 
         # Final saving on exit
         if raw_buffer:
@@ -159,24 +160,24 @@ def serial_reader(log_widget):
 
 
 # === SEND COMMAND ===
-def send_command(entry_widget, log_widget):
+def send_command(entry_widget, command_log):
     cmd = entry_widget.get().strip()
     if cmd:
         try:
             ser.write((cmd + '\n').encode('utf-8'))
-            log_widget.insert(tk.END, f"[Sent] {cmd}\n")
-            log_widget.see(tk.END)
+            command_log.insert(tk.END, f"[Command sent] {cmd}\n")
+            command_log.see(tk.END)
             entry_widget.delete(0, tk.END)
         except Exception as e:
-            log_widget.insert(tk.END, f"[Send Error] {e}\n")
-            log_widget.see(tk.END)
+            command_log.insert(tk.END, f"[Command Send Error] {e}\n")
+            command_log.see(tk.END)
 
 # Plotting
 def create_plots(root):
     global data_buffer
 
     # Setup matplotlib figure with 3 subplots
-    fig = Figure(figsize=(12, 8), dpi=100)
+    fig = Figure(figsize=(12, 6), dpi=100)
 
     ax1 = fig.add_subplot(311)  # Temperature
     ax2 = fig.add_subplot(312)  # Acceleration
@@ -208,16 +209,22 @@ def create_plots(root):
             root.after(200, update_plot)
             return
 
-        times = [d["timep"] for d in data_buffer]
-        temps = [d["temp_c"] for d in data_buffer]
+        filtered = [d for d in data_buffer if d["timep"] > 0 and d["temp_c"] != 0]
 
-        acc_x = [d["acc_x"] for d in data_buffer]
-        acc_y = [d["acc_y"] for d in data_buffer]
-        acc_z = [d["acc_z"] for d in data_buffer]
+        if not filtered:
+            root.after(200, update_plot)
+            return
 
-        mag_x = [d["mag_x"] for d in data_buffer]
-        mag_y = [d["mag_y"] for d in data_buffer]
-        mag_z = [d["mag_z"] for d in data_buffer]
+        times = [d["timep"] for d in filtered]
+        temps = [d["temp_c"] for d in filtered]
+
+        acc_x = [d["acc_x"] for d in filtered]
+        acc_y = [d["acc_y"] for d in filtered]
+        acc_z = [d["acc_z"] for d in filtered]
+
+        mag_x = [d["mag_x"] for d in filtered]
+        mag_y = [d["mag_y"] for d in filtered]
+        mag_z = [d["mag_z"] for d in filtered]
 
         # Update data for all lines
         temp_line.set_data(times, temps)
@@ -255,8 +262,14 @@ def start_gui():
     root = tk.Tk()
     root.title("CanSat Logger + Command Sender")
 
-    log_widget = scrolledtext.ScrolledText(root, width=100, height=10)
-    log_widget.pack(padx=10, pady=10)
+    # Sensor log
+    value_log = scrolledtext.ScrolledText(root, width=100, height=10)
+    value_log.pack(padx=10, pady=(10, 5))
+
+    # Command log
+    command_log = scrolledtext.ScrolledText(root, width=100, height=5)
+    command_log.pack(padx=10, pady=(0, 10))
+
 
     command_frame = tk.Frame(root)
     command_frame.pack(pady=5)
@@ -264,7 +277,7 @@ def start_gui():
     entry = tk.Entry(command_frame, width=50)
     entry.pack(side=tk.LEFT, padx=5)
 
-    send_button = tk.Button(command_frame, text="Send", command=lambda: send_command(entry, log_widget))
+    send_button = tk.Button(command_frame, text="Send", command=lambda: send_command(entry, command_log))
     send_button.pack(side=tk.LEFT)
 
     # Predefined buttons
@@ -273,7 +286,7 @@ def start_gui():
         btn.pack(side=tk.LEFT, padx=2)
 
     # Launch Serial thread
-    threading.Thread(target=serial_reader,args=(log_widget,),daemon=True).start()
+    threading.Thread(target=serial_reader, args=(value_log, command_log), daemon=True).start()
 
     create_plots(root)
 
