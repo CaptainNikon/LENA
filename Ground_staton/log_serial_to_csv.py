@@ -4,6 +4,7 @@
 import serial
 import threading
 import tkinter as tk
+from tkinter import messagebox
 from tkinter import scrolledtext
 import time
 import csv
@@ -34,6 +35,23 @@ Clbmtrx_acc = np.array([
     [-0.0008,  1.0021,  0.0005, -0.0559],
     [ 0.0363,  0.0023,  1.0283, -0.0195]
 ])
+
+predefined_commands = [
+    ("Burst Mode", "CBB"),
+    ("Survey Mode", "CSS"),
+    
+    ("Temp ON", "STI"),
+    ("Temp OFF", "STO"),
+    
+    ("Ultra ON", "SUI"),
+    ("Ultra OFF", "SUO"),
+    
+    ("Accel ON", "SAI"),
+    ("Accel OFF", "SAO"),
+    
+    ("Hall ON", "SHI"),
+    ("Hall OFF", "SHO"),
+]
 
 # Conversion from raw to value magnetometer (µT per LSB)
 MAG_SCALE = 0.15
@@ -248,6 +266,66 @@ def create_plots(root):
     update_plot()
 
 
+def add_control_buttons(command_frame, command_log):
+    toggle_states = {}
+
+    def send_serial_command(cmd):
+        try:
+            ser.write((cmd + '\n').encode('utf-8'))
+            command_log.insert(tk.END, f"[Command sent] {cmd}\n")
+            command_log.see(tk.END)
+        except Exception as e:
+            command_log.insert(tk.END, f"[Serial Error] {e}\n")
+            command_log.see(tk.END)
+
+    def create_toggle_button(label, cmd_on, cmd_off, confirm=False):
+        def toggle():
+            current = toggle_states.get(label, False)
+            new_state = not current
+            new_cmd = cmd_on if new_state else cmd_off
+            color = "green" if new_state else "red"
+            new_label = label
+
+            def do_send():
+                toggle_states[label] = new_state
+                btn.config(bg=color, text=new_label)
+                send_serial_command(new_cmd)
+
+            if confirm:
+                if messagebox.askyesno("Confirm Action", f"Are you sure you want to send '{new_cmd}'?"):
+                    do_send()
+            else:
+                do_send()
+
+        btn = tk.Button(command_frame, text=label, width=10, command=toggle, bg="red", fg="white")
+        btn.pack(side=tk.LEFT, padx=3)
+        toggle_states[label] = False
+
+    # Sensor toggles
+    create_toggle_button("Temp", "STI", "STO")
+    create_toggle_button("Ultra", "SUI", "SUO")
+    create_toggle_button("Accel", "SAI", "SAO")
+    create_toggle_button("Hall", "SHI", "SHO")
+
+    # Servo toggle with confirmation
+    create_toggle_button("Servo", "SS1", "SS0", confirm=True)
+
+    # Burst/Survey toggle
+    mode_state = {"burst": False}
+
+    def toggle_mode():
+        mode_state["burst"] = not mode_state["burst"]
+        cmd = "CBB" if mode_state["burst"] else "CSS"
+        label = "Burst Mode" if mode_state["burst"] else "Survey Mode"
+        color = "green" if mode_state["burst"] else "red"
+        mode_btn.config(text=label, bg=color)
+        send_serial_command(cmd)
+
+    mode_btn = tk.Button(command_frame, text="Survey Mode", bg="red", fg="white",
+                         width=12, command=toggle_mode)
+    mode_btn.pack(side=tk.LEFT, padx=10)
+
+
 # GUI
 def start_gui():
     global ser, data_buffer, plot_length
@@ -274,16 +352,7 @@ def start_gui():
     command_frame = tk.Frame(root)
     command_frame.pack(pady=5)
 
-    entry = tk.Entry(command_frame, width=50)
-    entry.pack(side=tk.LEFT, padx=5)
-
-    send_button = tk.Button(command_frame, text="Send", command=lambda: send_command(entry, command_log))
-    send_button.pack(side=tk.LEFT)
-
-    # Predefined buttons
-    for cmd in ["p", "s", "r"]:
-        btn = tk.Button(command_frame, text=cmd.capitalize(), command=lambda c=cmd: entry.insert(0, c))
-        btn.pack(side=tk.LEFT, padx=2)
+    add_control_buttons(command_frame, command_log)
 
     # Launch Serial thread
     threading.Thread(target=serial_reader, args=(value_log, command_log), daemon=True).start()

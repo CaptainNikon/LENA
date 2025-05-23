@@ -54,25 +54,24 @@ unsigned int burstMode = 100;  // Sends data 10 times per sec
 unsigned int surveyMode = 500; // Sends data 2 times per sec
 
 // CanSat structure
-struct CanSat_struct
-{
-	// Ground station name?
-	// byte address_g[7] = {'G', 'r', 'o', 'u', 'd', '\0'};
-	byte commands[10];
-	int Servo_pos = 0; // variable to store the servo position
-	struct
-	{
+struct CanSat_struct {
+	char command[4] = {0}; // 3-character command + null terminator
+	int Servo_pos = 0;
+
+	struct {
 		bool Sensor_Ultrasonic : 1;
 		bool Sensor_Halleffect : 1;
 		bool Sensor_Temperature : 1;
 		bool Sensor_Acceleration : 1;
-		bool A : 1; // theas dose not take upp eany space, 8 bit=1 byte....
+		bool A : 1;
 		bool B : 1;
 		bool C : 1;
 		bool D : 1;
 	};
 	int currentDataSendingMode;
 };
+
+
 // __attribute__((packed))
 struct __attribute__((packed)) Measurement_struct
 {
@@ -223,12 +222,12 @@ void loop()
 	unsigned long currentMillis = millis();
 	if (currentMillis - previousMillis >= interval)
 	{
-		Serial.print("Time:\t");
-		Serial.println(Measurement.time);
+		//Serial.print("Time:\t");
+		//Serial.println(Measurement.time);
 
 		loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
-		Serial.print("Messurment pull rate: ");
-		Serial.println(loop_timer);
+		//Serial.print("Messurment pull rate: ");
+		//Serial.println(loop_timer);
 		loop_counter = 0;
 		previousMillis = currentMillis;
 
@@ -315,14 +314,12 @@ void Init_DS18B20() {
     }
 }
 
-
-
 void Init_CanSat()
 {
-	CanSat.Sensor_Acceleration = true;
-	CanSat.Sensor_Halleffect = true;
-	CanSat.Sensor_Temperature = true;
-	CanSat.Sensor_Ultrasonic = true;
+	CanSat.Sensor_Acceleration = false;
+	CanSat.Sensor_Halleffect = false;
+	CanSat.Sensor_Temperature = false;
+	CanSat.Sensor_Ultrasonic = false;
 }
 
 void Init_accelerometer()
@@ -391,14 +388,8 @@ void Measurement_Ultrasonic()
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
 	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH,12000); //Maximum delay of 12000 when timeout
 	// Calculating the distance
-	if (duration == 0) {
-		Serial.println("Ultrasonic: No echo (too far or misaligned)");
-		Measurement.distance = 0; // Optional: use 255 as an invalid flag
-	} else {
-		// Convert to cm
-		float distance_cm = duration * 0.0343 / 2.0;
-		Measurement.distance = (uint8_t)(distance_cm + 0.5); // round to nearest cm
-	}
+	float distance_cm = duration * 0.0343 / 2.0;
+	Measurement.distance = (uint8_t)(distance_cm + 0.5); // round to nearest cm
 }
 
 void Measurement_accelerometer()
@@ -456,7 +447,7 @@ void Radio_send()
 	{
 		return; // No data to sent
 	}
-	Serial.print("Sending ");
+	//Serial.print("Sending ");
 
 
 	// Getting the size of datae
@@ -476,15 +467,25 @@ void Radio_send()
 		Serial.println("fuck");
 	}
 }
+
 void Radio_read()
 {
-	if (radio.available())
-	{
-		radio.read(&CanSat.commands, sizeof(CanSat.commands));
+	char incoming[4];  // 3 characters + 1 for null terminator
 
-		Serial.print("Comand: ");
-		Serial.println(CanSat.commands[0]);
+	if (radio.available()) {
+			radio.read(incoming, 3);
+			incoming[3] = '\0';  // Null-terminate the string
+
+			Serial.print("Command received: ");
+			Serial.println(incoming);
+
+			// Store into CanSat.commands (if needed)
+			strncpy((char*)CanSat.command, incoming, 3);
+			CanSat.command[3] = '\0';
+
+			Run_Commands();  // Handle the command logic
 	}
+
 }
 
 /*
@@ -494,94 +495,44 @@ or at which rate the measurement data is to be sent.
 Third element is the command that ground wants to change it output to. For sensors '1' is an active state and '2' is dormant.
 */
 
-void Run_Commands()
-{
-	if (CanSat.commands[0] == 0)
-	{
-		return;
-	}
-	CanSat.commands[0] = toUpperCase(CanSat.commands[0]);
+void Run_Commands() {
+	if (strlen(CanSat.command) != 3) return;
 
-	if (CanSat.commands[0] == 'S')
-	{
-		Serial.println("S");
-		CanSat.commands[1] = toUpperCase(CanSat.commands[1]);
+	char type = toupper(CanSat.command[0]);
+	char sensor = toupper(CanSat.command[1]);
+	char action = toupper(CanSat.command[2]);
 
-		if (CanSat.commands[1] == 'T')
-		{
-			if (CanSat.commands[2] == '1')
-			{
-				CanSat.Sensor_Temperature = true;
-			}
-			else if (CanSat.commands[2] == '0')
-			{
-				CanSat.Sensor_Temperature = false;
-			}
-		}
-		else if (CanSat.commands[1] == 'U')
-		{
-			if (CanSat.commands[2] == '1')
-			{
-				CanSat.Sensor_Ultrasonic = true;
-				// Go in to Measurement_Ultrasonic()
-			}
-			else if (CanSat.commands[2] == '0')
-			{
-				CanSat.Sensor_Ultrasonic = false;
-				// Dormant state
-			}
-		}
-		else if (CanSat.commands[1] == 'A')
-		{
-			if (CanSat.commands[2] == '1')
-			{
-				CanSat.Sensor_Acceleration = true;
-				// Go into accelerometer sensors function to acquire data
-			}
-			else if (CanSat.commands[2] == '0')
-			{
-				CanSat.Sensor_Ultrasonic = false;
-				// Dormant state
-			}
-		}
-		else if (CanSat.commands[1] == 'H')
-		{
-			if (CanSat.commands[2] == '1')
-			{
-				CanSat.Sensor_Halleffect = true;
-				// Go into servo function to acquire data
-			}
-			else if (CanSat.commands[2] == '0')
-			{
-				CanSat.Sensor_Halleffect = false;
-				// Dormant state
-			}
-		}
-		else if (CanSat.commands[1] == 'S')
-		{
-			CanSat.Servo_pos = CanSat.commands[1];
-			// Go into servo function to acquire data
-		}
-	}
+	if (type == 'S') {
+		bool enable = (action == 'I'); // I = enable (on), O = disable (off)
 
-	else if (CanSat.commands[0] == 'C')
-	{
-		Serial.println("C");
-
-		CanSat.commands[1] = toUpperCase(CanSat.commands[1]);
-		if (CanSat.commands[1] == 'B')
-		{
+		if (sensor == 'T') {
+			CanSat.Sensor_Temperature = enable;
+			if (!enable) Measurement.temp = 0;
+		} else if (sensor == 'U') {
+			CanSat.Sensor_Ultrasonic = enable;
+			if (!enable) Measurement.distance = 0;
+		} else if (sensor == 'A') {
+			CanSat.Sensor_Acceleration = enable;
+			if (!enable) {
+				Measurement.accelerometer_X = 0;
+				Measurement.accelerometer_Y = 0;
+				Measurement.accelerometer_Z = 0;
+			}
+		} else if (sensor == 'H') {
+			CanSat.Sensor_Halleffect = enable;
+			if (!enable) {
+				Measurement.calX = 0;
+				Measurement.calY = 0;
+				Measurement.calZ = 0;
+			}
+		}
+	} else if (type == 'C') {
+		if (sensor == 'B' && action == 'B') {
 			CanSat.currentDataSendingMode = burstMode;
-		}
-		else if (CanSat.commands[1] == 'S')
-		{
+		} else if (sensor == 'S' && action == 'S') {
 			CanSat.currentDataSendingMode = surveyMode;
 		}
 	}
 
-	else
-	{
-		Serial.println("Not a correct command. Try again");
-	}
-	CanSat.commands[0] = 0;
+	CanSat.command[0] = '\0'; // clear after execution
 }
