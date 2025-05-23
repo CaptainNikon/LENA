@@ -372,9 +372,9 @@ int16_t readDS18B20Raw(DallasTemperature &sensor, uint8_t index = 0) {
 }
 
 
+// Needed to really measure raw data
 void Measurement_DS18B20() {
 	sensors.requestTemperatures(); // This is needed to update the sensor
-	//delay(50); // wait long enough for 10-bit resolution
 	Measurement.temp = readDS18B20Raw(sensors);
 }
 
@@ -389,7 +389,7 @@ void Measurement_Ultrasonic()
 	delayMicroseconds(10);
 	digitalWrite(PIN_Ultrasonic_trig, LOW);
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
-	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
+	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH, 12000); //Maximum delay of 12000 when timeout
 	// Calculating the distance
 	if (duration == 0) {
 		Serial.println("Ultrasonic: No echo (too far or misaligned)");
