@@ -47,7 +47,7 @@ def calibrate(values):
     try:
         timep = float(values[0])/100
         distance = 0.919*float(values[1])+0.625 #Calibrated
-        temp_c = 0.961*(float(values[2])*0.1)+0.641 #Calibrated
+        temp_c = 0.961*(float(values[2])*(1/16))+0.641 #Calibrated
         acc_x = float(values[3]) * 0.015748
         acc_y = float(values[4]) * 0.015748
         acc_z = float(values[5]) * 0.015748

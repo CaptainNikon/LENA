@@ -45,7 +45,7 @@ struct __attribute__((packed)) Measurement_struct
 {
   uint16_t time;
   uint8_t distance;
-  uint16_t temp;
+  int16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   int16_t magX, magY, magZ;
 };
@@ -91,7 +91,6 @@ void debug_print() {
   Serial.print(Ground.temperature); Serial.print("\t");
   Serial.println(Ground.humidity);
 }
-
 
 
 void setup()

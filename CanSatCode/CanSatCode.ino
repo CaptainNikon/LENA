@@ -1,6 +1,10 @@
 // LENA project
 // THis is the code for the CanSat
 
+// Careful when using this code, two libraries were chaned so the code can run
+// mag.read is not available as a public function this has to be copied from private to public in #include <Adafruit_Sensor.h>
+// 
+
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
@@ -60,7 +64,7 @@ struct CanSat_struct
 	{
 		bool Sensor_Ultrasonic : 1;
 		bool Sensor_Halleffect : 1;
-		bool Sensor_Temprature : 1;
+		bool Sensor_Temperature : 1;
 		bool Sensor_Acceleration : 1;
 		bool A : 1; // theas dose not take upp eany space, 8 bit=1 byte....
 		bool B : 1;
@@ -74,7 +78,7 @@ struct __attribute__((packed)) Measurement_struct
 {
 	uint16 time=0;
 	uint8 distance = 0;
-	uint16 temp = 0;
+	int16 temp = 0;
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
 	int16 calX = 0, calY = 0, calZ=0;
 };
@@ -106,6 +110,7 @@ void Init_Ultrasonic();
 void Init_accelerometer();
 void Init_hall_effect();
 void Init_servo();
+void Init_DS18B20();
 
 uint8 Meassurment_size()
 {
@@ -171,6 +176,7 @@ void setup()
 	Init_Ultrasonic();
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
+	Init_DS18B20();
 	// Init_servo();
 
 }
@@ -220,7 +226,6 @@ void loop()
 		Serial.print("Time:\t");
 		Serial.println(Measurement.time);
 
-
 		loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
 		Serial.print("Messurment pull rate: ");
 		Serial.println(loop_timer);
@@ -228,29 +233,29 @@ void loop()
 		previousMillis = currentMillis;
 
 		// Take the measurement
-		if (CanSat.Sensor_Temprature == true)
+		if (CanSat.Sensor_Temperature)
 		{
 			Measurement_DS18B20();
 		}
 
-		if (CanSat.Sensor_Ultrasonic = true)
+		if (CanSat.Sensor_Ultrasonic)
 		{
-			// Measurement_Ultrasonic();
+			Measurement_Ultrasonic();
 		}
 		Move_meassurment_to_data();
 	}
-	if (CanSat.Sensor_Acceleration = true)
+	if (CanSat.Sensor_Acceleration)
 	{
 		Measurement_accelerometer();
 	}
-	if (CanSat.Sensor_Halleffect = true)
+	if (CanSat.Sensor_Halleffect)
 	{
 		Measurement_hall_effect();
 	}
 	// print_values();
 
 	// Move the Measurement to Data
-
+	//Move_meassurment_to_data(); This should be needed here no ? Samuel
 	// Radio over the data from Data
 	Radio_send();
 	Radio_read();
@@ -267,7 +272,8 @@ void Init_Radio()
 	// radio.begin(3000000); // Test this
 	radio.begin();
 
-	radio.setDataRate(2); // setting data rate to 250 kbit/s, RF24_250KBPS
+	//radio.setDataRate(2); // Linux expression
+	radio.setDataRate(RF24_250KBPS); // Windows expression in case we have to debug with Windows
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21); // set the channel to 21
@@ -280,6 +286,7 @@ void Init_Radio()
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
+	
 
 	radio.openReadingPipe(1, address_c);
 	radio.startListening();
@@ -294,16 +301,27 @@ void Init_Ultrasonic()
 	pinMode(PIN_Ultrasonic_echo, INPUT);  // Sets the PIN_Ultrasonic_echo as an Input
 }
 
-void Init_DS18B20()
-{
-	sensors.begin(); // start the sensor (wiring)
-	sensors.setResolution(8);
+void Init_DS18B20() {
+    sensors.begin(); // Discover devices
+
+    DeviceAddress addr;
+    if (sensors.getAddress(addr, 0)) {
+        sensors.setResolution(addr, 10);
+        Serial.print("Requested resolution: 10\n");
+        Serial.print("Actual resolution now: ");
+        Serial.println(sensors.getResolution(addr));
+    } else {
+        Serial.println("ERROR: No DS18B20 sensor found!");
+    }
 }
+
+
+
 void Init_CanSat()
 {
 	CanSat.Sensor_Acceleration = true;
 	CanSat.Sensor_Halleffect = true;
-	CanSat.Sensor_Temprature = true;
+	CanSat.Sensor_Temperature = true;
 	CanSat.Sensor_Ultrasonic = true;
 }
 
@@ -343,15 +361,24 @@ void Init_servo()
 	// myservo.attach(6);
 }
 
-void Measurement_DS18B20()
-{
+// Low level raw reader, adapted from Dallas Temperature Deivde
+int16_t readDS18B20Raw(DallasTemperature &sensor, uint8_t index = 0) {
+    DeviceAddress addr;
+    if (!sensor.getAddress(addr, index)) return DEVICE_DISCONNECTED_RAW;
+    uint8_t scratchPad[9];
+    if (!sensor.readScratchPad(addr, scratchPad)) return DEVICE_DISCONNECTED_RAW;
 
-	// sensors.requestTemperatures();					// send request to device to get temperature
-	Measurement.temp = sensors.getTempCByIndex(0) * 10; // switch to bit manipulation aka, << n
-
-	// what dose this function do?!?!?! this is faster then getTempCByIndex by 30%.....
-	// Measurement.temp = sensors.getTemp(0);
+    return (int16_t)((scratchPad[1] << 8) | scratchPad[0]); // LSB + MSB
 }
+
+
+void Measurement_DS18B20() {
+	sensors.requestTemperatures(); // This is needed to update the sensor
+	//delay(50); // wait long enough for 10-bit resolution
+	Measurement.temp = readDS18B20Raw(sensors);
+}
+
+
 void Measurement_Ultrasonic()
 {
 	// Clears the PIN_Ultrasonic_trig
@@ -364,7 +391,14 @@ void Measurement_Ultrasonic()
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
 	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH);
 	// Calculating the distance
-	Measurement.distance = duration * 0.17; // 0.17 = 0.034 * 10 / 2;
+	if (duration == 0) {
+		Serial.println("Ultrasonic: No echo (too far or misaligned)");
+		Measurement.distance = 0; // Optional: use 255 as an invalid flag
+	} else {
+		// Convert to cm
+		float distance_cm = duration * 0.0343 / 2.0;
+		Measurement.distance = (uint8_t)(distance_cm + 0.5); // round to nearest cm
+	}
 }
 
 void Measurement_accelerometer()
@@ -477,11 +511,11 @@ void Run_Commands()
 		{
 			if (CanSat.commands[2] == '1')
 			{
-				CanSat.Sensor_Temprature = true;
+				CanSat.Sensor_Temperature = true;
 			}
 			else if (CanSat.commands[2] == '0')
 			{
-				CanSat.Sensor_Temprature = false;
+				CanSat.Sensor_Temperature = false;
 			}
 		}
 		else if (CanSat.commands[1] == 'U')
