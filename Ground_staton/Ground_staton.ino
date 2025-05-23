@@ -150,19 +150,25 @@ void loop() {
 	    delay(50);
   }
   
-   // Check for incoming serial command
-  if (Serial.available()) {
+  // Check for incoming serial command
+if (Serial.available()) {
   String command = Serial.readStringUntil('\n');
-  command.trim();  // Remove whitespace or newline
+  command.trim();  // Remove any extra whitespace or newline characters
 
-  if (command.length() == 1) {
-    char c = command.charAt(0);
+  // Flush remaining input to avoid queued commands
+  while (Serial.available()) {
+    Serial.read();
+  }
+
+  if (command.length() == 3) {  // Enforce exact command length if you only expect 3-character commands
+    char commandBuffer[4]; // 3 chars + null terminator
+    command.toCharArray(commandBuffer, sizeof(commandBuffer));
+
     bool success = false;
-
     radio.stopListening();
 
     for (int attempt = 0; attempt < 3 && !success; attempt++) {
-      success = radio.write(&c, 1);
+      success = radio.write(commandBuffer, strlen(commandBuffer));
       if (!success) {
         delay(10); // small delay before retry
       }
@@ -171,12 +177,14 @@ void loop() {
     radio.startListening();
 
     if (success) {
-      Serial.println("Command received");
+      Serial.print("Command sent: ");
+      Serial.println(command);
     } else {
-      Serial.println("Command NOT received after 3 attempts");
+      Serial.println("Failed to send command after retries");
     }
+
   } else {
-    Serial.println("Invalid command: must be 1 char");
+    Serial.println("Invalid command (must be exactly 3 characters)");
   }
 }
 
@@ -229,7 +237,7 @@ void Measurement_DHT()
 	if (isnan(Ground.temperature) || isnan(Ground.humidity))
 	{
 		Serial.println("Failed to read values from the DHT sensor!");
-		delay(1000);
+		delay(100);
 		return; // Do not continue the rest of the loop and rewind!
 	}
 }
