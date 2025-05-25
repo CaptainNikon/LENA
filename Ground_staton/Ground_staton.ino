@@ -45,6 +45,7 @@ struct __attribute__((packed)) Measurement_struct
 {
   uint16_t time;
   uint8_t distance;
+  int16_t temp;
   int16_t accelerometer_X, accelerometer_Y, accelerometer_Z;
   int16_t magX, magY, magZ;
 };
@@ -92,7 +93,6 @@ void debug_print() {
 }
 
 
-
 void setup()
 {
 	while (!Serial)
@@ -105,7 +105,7 @@ void setup()
 	radio.setChannel(21);
 	radio.setAutoAck(true);
 	// radio.setPALevel(RF24_PA_LOW);
-	radio.setDataRate(2);
+	radio.setDataRate(RF24_250KBPS);
   radio.openWritingPipe(adress_c);
 	radio.openReadingPipe(0, adress_g);
 	//  we have the chanels 21-30 and 81-90
@@ -116,8 +116,7 @@ void setup()
 	radio.startListening();
   printf_begin();
   radio.printPrettyDetails();	
-  radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
-
+  radio.setPALevel(RF24_PA_LOW);
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
@@ -135,7 +134,7 @@ void loop() {
   uint8_t pipe;
   if (radio.available(&pipe)) {
     radio.read(&Measurement, sizeof(Measurement));
-    radio.flush_rx();
+    //radio.flush_rx();
     // Send one clean tab-separated line over serial
       Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
       Serial.print(Measurement.distance); Serial.print("\t");
@@ -151,26 +150,44 @@ void loop() {
 	    delay(50);
   }
   
-   // Check for incoming serial command
-  if (Serial.available()) {
+  // Check for incoming serial command
+if (Serial.available()) {
   String command = Serial.readStringUntil('\n');
-  command.trim();  // Remove whitespace or newline
+  command.trim();  // Remove any extra whitespace or newline characters
 
-  if (command.length() == 1) {
-    char c = command.charAt(0);
+  // Flush remaining input to avoid queued commands
+  while (Serial.available()) {
+    Serial.read();
+  }
+
+  if (command.length() == 3) {  // Enforce exact command length if you only expect 3-character commands
+    char commandBuffer[4]; // 3 chars + null terminator
+    command.toCharArray(commandBuffer, sizeof(commandBuffer));
+
+    bool success = false;
     radio.stopListening();
-    bool success = radio.write(&c, 1);
+
+    for (int attempt = 0; attempt < 3 && !success; attempt++) {
+      success = radio.write(commandBuffer, strlen(commandBuffer));
+      if (!success) {
+        delay(10); // small delay before retry
+      }
+    }
+
     radio.startListening();
 
-    if (success == 0) {
-      Serial.println("Not Nice");
+    if (success) {
+      Serial.print("Command sent: ");
+      Serial.println(command);
+    } else {
+      Serial.println("Failed to send command after retries");
     }
-    else {
-      Serial.println("nice");
-    }
+
   } else {
-    Serial.println("Invalid command: must be 1 char");
-  }}
+    Serial.println("Invalid command (must be exactly 3 characters)");
+  }
+}
+
 
 
   // Occasionally sample DHT and update display
@@ -220,7 +237,7 @@ void Measurement_DHT()
 	if (isnan(Ground.temperature) || isnan(Ground.humidity))
 	{
 		Serial.println("Failed to read values from the DHT sensor!");
-		delay(1000);
+		delay(100);
 		return; // Do not continue the rest of the loop and rewind!
 	}
 }

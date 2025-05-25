@@ -3,7 +3,11 @@
 
 // Careful when using this code, two libraries were chaned so the code can run
 // mag.read is not available as a public function this has to be copied from private to public in #include <Adafruit_Sensor.h>
+<<<<<<< HEAD
 //
+=======
+// 
+>>>>>>> origin/main
 
 #include <SPI.h>
 #include <nRF24L01.h>
@@ -66,6 +70,7 @@ unsigned int burstMode = 100;  // Sends data 10 times per sec
 unsigned int surveyMode = 500; // Sends data 2 times per sec
 
 // CanSat structure
+
 struct CanSat_struct
 {
 	char command[4] = {0}; // 3-character command + null terminator
@@ -73,6 +78,7 @@ struct CanSat_struct
 
 	struct
 	{
+
 		bool Sensor_Ultrasonic : 1;
 		bool Sensor_Halleffect : 1;
 		bool Sensor_Temperature : 1;
@@ -192,6 +198,7 @@ void setup()
 	Init_hall_effect();
 	// Init_DS18B20();
 	//  Init_servo();
+
 }
 
 void print_values()
@@ -237,6 +244,7 @@ void loop()
 	{
 		// The loop will run 10 times before it gos in to this if statement, and take the last measurments
 		if (CanSat.timer_count == 10)
+
 		{
 #ifdef DEBUG
 			loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
@@ -276,6 +284,7 @@ void loop()
 
 	// Move the Measurement to Data
 	// Move_meassurment_to_data(); This should be needed here no ? Samuel
+
 	// Radio over the data from Data
 	// Radio_send();
 	// Radio_read();
@@ -290,8 +299,8 @@ void Init_Radio()
 
 	// radio.begin(3000000); // Test this
 	radio.begin();
-
 	// radio.setDataRate(2); // Linux expression
+
 	radio.setDataRate(RF24_250KBPS); // Windows expression in case we have to debug with Windows
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
@@ -305,6 +314,7 @@ void Init_Radio()
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
+	
 
 	radio.openReadingPipe(1, address_c);
 	radio.startListening();
@@ -335,12 +345,14 @@ void Init_DS18B20()
 	{
 		DEBUG_PRINTLN("ERROR: No DS18B20 sensor found!");
 	}
+
 }
 
 void Init_CanSat()
 {
 	CanSat.Sensor_Acceleration = true;
 	CanSat.Sensor_Halleffect = true;
+
 	CanSat.Sensor_Temperature = false;
 	CanSat.Sensor_Ultrasonic = false;
 }
@@ -412,6 +424,7 @@ void Measurement_Ultrasonic()
 	digitalWrite(PIN_Ultrasonic_trig, LOW);
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
 	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH, 12000); // Maximum delay of 12000 when timeout
+
 	// Calculating the distance
 	float distance_cm = duration * 0.0343 / 2.0;
 	Measurement.distance = (uint8_t)(distance_cm + 0.5); // round to nearest cm
@@ -476,6 +489,7 @@ void Radio_send()
 	}
 	// DEBUG_PRINT("Sending ");
 
+
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
 
@@ -506,7 +520,9 @@ void Radio_read()
 		DEBUG_PRINTLN(CanSat.command[0]);
 
 		Run_Commands(); // Handle the command logic
+
 	}
+
 }
 
 /*
@@ -520,6 +536,7 @@ void Run_Commands()
 {
 	if (strlen(CanSat.command) != 3)
 		return;
+
 
 	char type = toupper(CanSat.command[0]);
 	char sensor = toupper(CanSat.command[1]);
@@ -550,6 +567,7 @@ void Run_Commands()
 				Measurement.accelerometer_Y = 0;
 				Measurement.accelerometer_Z = 0;
 			}
+
 		}
 		else if (sensor == 'H')
 		{
@@ -578,4 +596,5 @@ void Run_Commands()
 		DEBUG_PRINTLN("Not a correct command. Try again");
 	}
 	CanSat.command[0] = 0;
+
 }

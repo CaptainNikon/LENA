@@ -4,6 +4,7 @@
 import serial
 import threading
 import tkinter as tk
+from tkinter import messagebox
 from tkinter import scrolledtext
 import time
 import csv
@@ -17,14 +18,12 @@ import os
 serial_port = 'COM3'
 baud_rate = 115200
 
-# Initialization of buffers to save time while saving
+# Initialization of data saving buffers
 raw_buffer = []
 calib_buffer = []
 FLUSH_THRESHOLD = 10 # Save every n lines
 raw_filename = 'log_raw_output.csv'
 calib_filename = 'log_calibrated_output.csv'
-
-MAG_SCALE = 0.15  # µT per LSB, based on the adafruit library
 
 #buffer for plotting 
 plot_length = 100
@@ -37,34 +36,97 @@ Clbmtrx_acc = np.array([
     [ 0.0363,  0.0023,  1.0283, -0.0195]
 ])
 
-# GLOBAL STATE
+predefined_commands = [
+    ("Burst Mode", "CBB"),
+    ("Survey Mode", "CSS"),
+    
+    ("Temp ON", "STI"),
+    ("Temp OFF", "STO"),
+    
+    ("Ultra ON", "SUI"),
+    ("Ultra OFF", "SUO"),
+    
+    ("Accel ON", "SAI"),
+    ("Accel OFF", "SAO"),
+    
+    ("Hall ON", "SHI"),
+    ("Hall OFF", "SHO"),
+]
+
+# Conversion from raw to value magnetometer (µT per LSB)
+MAG_SCALE = 0.15
+
+# GLOBAL STATES
 ser = None
 running = True
 
 def calibrate(values):
     global Clbmtrx_acc
     try:
-        timep = float(values[0])
-        distance = float(values[1])
-        temp_c = float(values[2])*0.1
+        timep = float(values[0])/100
+        distance = 0.919*float(values[1])+0.625 #Calibrated
+        temp_c = 0.961*(float(values[2])*(1/16))+0.641 #Calibrated
         acc_x = float(values[3]) * 0.015748
         acc_y = float(values[4]) * 0.015748
         acc_z = float(values[5]) * 0.015748
         raw_acc = np.array([acc_x, acc_y, acc_z, 1.0])
-        calibrated_acc = Clbmtrx_acc @ raw_acc 
-        acc_x_c, acc_y_c, acc_z_c = calibrated_acc
+        calibrated_acc = Clbmtrx_acc @ raw_acc # Calibrated
+        acc_x_c, acc_y_c, acc_z_c = calibrated_acc #Calibrated
         
         mag_x = float(values[6])*MAG_SCALE
         mag_y = float(values[7])*MAG_SCALE
         mag_z = float(values[8])*MAG_SCALE
-        ground_t = float(values[9])
-        ground_h = 0.858*float(values[10])+0.005
+        ground_t = 1.8079*float(values[9])-28.5537 # Calibrated
+        ground_h = 0.858*float(values[10])+0.005 #Calibrated
     except Exception as e:
         raise ValueError(f"Calibration failed: {e}")
     return [timep, distance, temp_c, acc_x_c, acc_y_c, acc_z_c, mag_x, mag_y, mag_z, ground_t, ground_h]
 
+    
+def process_line(values, line, raw_buffer, calib_buffer, data_buffer, log_widget):
+    try:
+        timeperror= float(values[0])
+        raw_buffer.append(values)
+
+        try:
+            calibrated = calibrate(values)
+        except Exception as e:
+            print(f"Calibration failed at {timeperror:.3f}, using raw values. Error: {e}")
+            try:
+                calibrated = list(map(float, values))
+            except ValueError:
+                print(f"Invalid raw data format at {values[0]}, skipping this line.")
+                return None
+
+        calib_buffer.append(calibrated)
+
+        data_buffer.append({
+            "timep": calibrated[0],
+            "dist": calibrated[1],
+            "temp_c": calibrated[2],
+            "acc_x": calibrated[3],
+            "acc_y": calibrated[4],
+            "acc_z": calibrated[5],
+            "mag_x": calibrated[6],
+            "mag_y": calibrated[7],
+            "mag_z": calibrated[8],
+        })
+
+        display_line = line + '\n'
+        log_widget.insert(tk.END, display_line)
+        log_widget.see(tk.END)
+
+        return True
+
+    except ValueError:
+        print(f"Ignored malformed sensor line: {line}")
+    except Exception as e:
+        print(f"[Unexpected error in process_line] {e}")
+    return None
+
+
 # === SERIAL READER THREAD ===
-def serial_reader(log_widget):
+def serial_reader(value_log, command_log):
     global ser, running, raw_buffer, calib_buffer, raw_filename, calib_filename, data_buffer
 
     with open(raw_filename, mode='w', newline='') as raw_file, \
@@ -82,73 +144,31 @@ def serial_reader(log_widget):
         while running:
             try:
                 if ser is None or not ser.is_open:
-                    display_line = "[Error] Serial port is not open.\n"
-                    log_widget.insert(tk.END, display_line)
-                    log_widget.see(tk.END)
+                    command_log.insert(tk.END, "[Error] Serial port is not open.\n")
+                    command_log.see(tk.END)
                     break
-                line = ser.readline().decode('utf-8').strip()
-                if line:
-                    values = line.split('\t')
-                    timep = float(values[0])
-                    display_line = ""
-                    if len(values) == 11:
-                        timep = float(values[0])
-                        raw_buffer.append(values)
 
-                        try:
-                            calibrated = calibrate(values)
-                            calib_buffer.append(calibrated)
-                            display_line = line + '\n'  # just show raw
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                if not line:
+                    continue
 
-                            data_buffer.append({
-                                "timep": calibrated[0],
-                                "dist": calibrated[1],
-                                "temp_c": calibrated[2],
-                                "acc_x": calibrated[3],
-                                "acc_y": calibrated[4],
-                                "acc_z": calibrated[5],
-                                "mag_x": calibrated[6],
-                                "mag_y": calibrated[7],
-                                "mag_z": calibrated[8],
-                            })
+                values = line.split('\t')
+                if len(values) == 11:
+                    success = process_line(values, line, raw_buffer, calib_buffer, data_buffer, value_log)
 
-                        except Exception as e:
-                            print(f"Calibration failed at {timep:.3f}, using raw values. Error: {e}")
-                            try:
-                                calibrated = list(map(float, values))
-                                calib_buffer.append(calibrated)
-                                display_line = line + '\n'
-
-                                # fallback buffer (optional)
-                                data_buffer.append({
-                                    "timep": calibrated[0],
-                                    "dist": calibrated[1],
-                                    "temp_c": calibrated[2],
-                                    "acc_x": calibrated[3],
-                                    "acc_y": calibrated[4],
-                                    "acc_z": calibrated[5],
-                                    "mag_x": calibrated[6],
-                                    "mag_y": calibrated[7],
-                                    "mag_z": calibrated[8],
-                                })
-
-                            except ValueError:
-                                print(f"Invalid raw data format at {timep:.3f}, skipping this line.")
-                                continue
-
-                    log_widget.insert(tk.END, display_line)
-                    log_widget.see(tk.END)
-
-                    # Write buffer to file after threshold
-                    if len(raw_buffer) >= FLUSH_THRESHOLD:
+                    if success and len(raw_buffer) >= FLUSH_THRESHOLD:
                         raw_writer.writerows(raw_buffer)
                         calib_writer.writerows(calib_buffer)
                         raw_buffer.clear()
                         calib_buffer.clear()
+                else:
+                    # Log any non-sensor line in the command log window
+                    command_log.insert(tk.END, f"[Info] {line}\n")
+                    command_log.see(tk.END)
 
             except Exception as e:
-                log_widget.insert(tk.END, f"[Error] {e}\n")
-                log_widget.see(tk.END)
+                command_log.insert(tk.END, f"[Error] {e}\n")
+                command_log.see(tk.END) 
 
         # Final saving on exit
         if raw_buffer:
@@ -158,24 +178,24 @@ def serial_reader(log_widget):
 
 
 # === SEND COMMAND ===
-def send_command(entry_widget, log_widget):
+def send_command(entry_widget, command_log):
     cmd = entry_widget.get().strip()
     if cmd:
         try:
             ser.write((cmd + '\n').encode('utf-8'))
-            log_widget.insert(tk.END, f"[Sent] {cmd}\n")
-            log_widget.see(tk.END)
+            command_log.insert(tk.END, f"[Command sent] {cmd}\n")
+            command_log.see(tk.END)
             entry_widget.delete(0, tk.END)
         except Exception as e:
-            log_widget.insert(tk.END, f"[Send Error] {e}\n")
-            log_widget.see(tk.END)
+            command_log.insert(tk.END, f"[Command Send Error] {e}\n")
+            command_log.see(tk.END)
 
 # Plotting
 def create_plots(root):
     global data_buffer
 
     # Setup matplotlib figure with 3 subplots
-    fig = Figure(figsize=(12, 8), dpi=100)
+    fig = Figure(figsize=(12, 6), dpi=100)
 
     ax1 = fig.add_subplot(311)  # Temperature
     ax2 = fig.add_subplot(312)  # Acceleration
@@ -207,16 +227,22 @@ def create_plots(root):
             root.after(200, update_plot)
             return
 
-        times = [d["timep"] for d in data_buffer]
-        temps = [d["temp_c"] for d in data_buffer]
+        filtered = [d for d in data_buffer if d["timep"] > 0 and d["temp_c"] != 0]
 
-        acc_x = [d["acc_x"] for d in data_buffer]
-        acc_y = [d["acc_y"] for d in data_buffer]
-        acc_z = [d["acc_z"] for d in data_buffer]
+        if not filtered:
+            root.after(200, update_plot)
+            return
 
-        mag_x = [d["mag_x"] for d in data_buffer]
-        mag_y = [d["mag_y"] for d in data_buffer]
-        mag_z = [d["mag_z"] for d in data_buffer]
+        times = [d["timep"] for d in filtered]
+        temps = [d["temp_c"] for d in filtered]
+
+        acc_x = [d["acc_x"] for d in filtered]
+        acc_y = [d["acc_y"] for d in filtered]
+        acc_z = [d["acc_z"] for d in filtered]
+
+        mag_x = [d["mag_x"] for d in filtered]
+        mag_y = [d["mag_y"] for d in filtered]
+        mag_z = [d["mag_z"] for d in filtered]
 
         # Update data for all lines
         temp_line.set_data(times, temps)
@@ -240,6 +266,66 @@ def create_plots(root):
     update_plot()
 
 
+def add_control_buttons(command_frame, command_log):
+    toggle_states = {}
+
+    def send_serial_command(cmd):
+        try:
+            ser.write((cmd + '\n').encode('utf-8'))
+            command_log.insert(tk.END, f"[Command sent] {cmd}\n")
+            command_log.see(tk.END)
+        except Exception as e:
+            command_log.insert(tk.END, f"[Serial Error] {e}\n")
+            command_log.see(tk.END)
+
+    def create_toggle_button(label, cmd_on, cmd_off, confirm=False):
+        def toggle():
+            current = toggle_states.get(label, False)
+            new_state = not current
+            new_cmd = cmd_on if new_state else cmd_off
+            color = "green" if new_state else "red"
+            new_label = label
+
+            def do_send():
+                toggle_states[label] = new_state
+                btn.config(bg=color, text=new_label)
+                send_serial_command(new_cmd)
+
+            if confirm:
+                if messagebox.askyesno("Confirm Action", f"Are you sure you want to send '{new_cmd}'?"):
+                    do_send()
+            else:
+                do_send()
+
+        btn = tk.Button(command_frame, text=label, width=10, command=toggle, bg="red", fg="white")
+        btn.pack(side=tk.LEFT, padx=3)
+        toggle_states[label] = False
+
+    # Sensor toggles
+    create_toggle_button("Temp", "STI", "STO")
+    create_toggle_button("Ultra", "SUI", "SUO")
+    create_toggle_button("Accel", "SAI", "SAO")
+    create_toggle_button("Hall", "SHI", "SHO")
+
+    # Servo toggle with confirmation
+    create_toggle_button("Servo", "SS1", "SS0", confirm=True)
+
+    # Burst/Survey toggle
+    mode_state = {"burst": False}
+
+    def toggle_mode():
+        mode_state["burst"] = not mode_state["burst"]
+        cmd = "CBB" if mode_state["burst"] else "CSS"
+        label = "Burst Mode" if mode_state["burst"] else "Survey Mode"
+        color = "green" if mode_state["burst"] else "red"
+        mode_btn.config(text=label, bg=color)
+        send_serial_command(cmd)
+
+    mode_btn = tk.Button(command_frame, text="Survey Mode", bg="red", fg="white",
+                         width=12, command=toggle_mode)
+    mode_btn.pack(side=tk.LEFT, padx=10)
+
+
 # GUI
 def start_gui():
     global ser, data_buffer, plot_length
@@ -254,25 +340,22 @@ def start_gui():
     root = tk.Tk()
     root.title("CanSat Logger + Command Sender")
 
-    log_widget = scrolledtext.ScrolledText(root, width=100, height=10)
-    log_widget.pack(padx=10, pady=10)
+    # Sensor log
+    value_log = scrolledtext.ScrolledText(root, width=100, height=10)
+    value_log.pack(padx=10, pady=(10, 5))
+
+    # Command log
+    command_log = scrolledtext.ScrolledText(root, width=100, height=5)
+    command_log.pack(padx=10, pady=(0, 10))
+
 
     command_frame = tk.Frame(root)
     command_frame.pack(pady=5)
 
-    entry = tk.Entry(command_frame, width=50)
-    entry.pack(side=tk.LEFT, padx=5)
-
-    send_button = tk.Button(command_frame, text="Send", command=lambda: send_command(entry, log_widget))
-    send_button.pack(side=tk.LEFT)
-
-    # Predefined buttons
-    for cmd in ["p", "s", "r"]:
-        btn = tk.Button(command_frame, text=cmd.capitalize(), command=lambda c=cmd: entry.insert(0, c))
-        btn.pack(side=tk.LEFT, padx=2)
+    add_control_buttons(command_frame, command_log)
 
     # Launch Serial thread
-    threading.Thread(target=serial_reader,args=(log_widget,),daemon=True).start()
+    threading.Thread(target=serial_reader, args=(value_log, command_log), daemon=True).start()
 
     create_plots(root)
 
