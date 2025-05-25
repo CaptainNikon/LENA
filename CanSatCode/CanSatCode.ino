@@ -3,7 +3,7 @@
 
 // Careful when using this code, two libraries were chaned so the code can run
 // mag.read is not available as a public function this has to be copied from private to public in #include <Adafruit_Sensor.h>
-// 
+//
 
 #include <SPI.h>
 #include <nRF24L01.h>
@@ -25,14 +25,11 @@
 #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__);
 #define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__);
 #else
-#define DEBUG_PRINT(...);
-#define DEBUG_PRINTLN(...);
+#define DEBUG_PRINT(...) ;
+#define DEBUG_PRINTLN(...) ;
 #endif
 
 #define STORAGE_SIZE 500
-
-
-
 
 // Defins the data storage size in bytes
 
@@ -69,11 +66,13 @@ unsigned int burstMode = 100;  // Sends data 10 times per sec
 unsigned int surveyMode = 500; // Sends data 2 times per sec
 
 // CanSat structure
-struct CanSat_struct {
+struct CanSat_struct
+{
 	char command[4] = {0}; // 3-character command + null terminator
 	int8_t Servo_pos = 0;
 
-	struct {
+	struct
+	{
 		bool Sensor_Ultrasonic : 1;
 		bool Sensor_Halleffect : 1;
 		bool Sensor_Temperature : 1;
@@ -84,15 +83,14 @@ struct CanSat_struct {
 	long pullrate = 250;
 };
 
-
 // __attribute__((packed))
 struct __attribute__((packed)) Measurement_struct
 {
-	uint16 time=0;
+	uint16 time = 0;
 	uint8 distance = 0;
 	int16 temp = 0;
 	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
-	int16 calX = 0, calY = 0, calZ=0;
+	int16 calX = 0, calY = 0, calZ = 0;
 };
 struct Data_struct
 {
@@ -188,13 +186,12 @@ void setup()
 
 	// Initialization function
 	Init_CanSat(); // Dose nothing right now
-	//Init_Radio();
-	//Init_Ultrasonic();
+	// Init_Radio();
+	// Init_Ultrasonic();
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
-	//Init_DS18B20();
-	// Init_servo();
-
+	// Init_DS18B20();
+	//  Init_servo();
 }
 
 void print_values()
@@ -234,31 +231,32 @@ unsigned long previousMillis = 0; // will store last time LED was updated
 void loop()
 {
 	loop_counter++;
-  
+
 	unsigned long currentMillis = millis();
-	if (currentMillis - previousMillis >= CanSat.pullrate/10)
+	if (currentMillis - previousMillis >= CanSat.pullrate / 10)
 	{
 		// The loop will run 10 times before it gos in to this if statement, and take the last measurments
-		if(CanSat.timer_count==10){
-		#ifdef DEBUG
+		if (CanSat.timer_count == 10)
+		{
+#ifdef DEBUG
 			loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
 			loop_counter = 0;
 			previousMillis = currentMillis;
 			DEBUG_PRINT("Messurment pull rate: ");
 			DEBUG_PRINTLN(loop_timer);
 			print_values();
-		#endif
-		
-			CanSat.timer_count=0; // Reset counter
+#endif
+
+			CanSat.timer_count = 0; // Reset counter
 			// Take the measurement
 			if (CanSat.Sensor_Temperature)
 			{
-				//Measurement_DS18B20();
+				// Measurement_DS18B20();
 			}
 
 			if (CanSat.Sensor_Ultrasonic)
 			{
-				//Measurement_Ultrasonic();
+				// Measurement_Ultrasonic();
 			}
 			Move_meassurment_to_data();
 		}
@@ -270,23 +268,22 @@ void loop()
 		{
 			Measurement_hall_effect();
 		}
-		
+
 		++CanSat.timer_count;
 	}
-	
+
 	// print_values();
 
 	// Move the Measurement to Data
-	//Move_meassurment_to_data(); This should be needed here no ? Samuel
+	// Move_meassurment_to_data(); This should be needed here no ? Samuel
 	// Radio over the data from Data
-	//Radio_send();
-	//Radio_read();
+	// Radio_send();
+	// Radio_read();
 	Run_Commands();
 
 	// Servo_move();
 	delay(50);
 }
-
 
 void Init_Radio()
 {
@@ -294,7 +291,7 @@ void Init_Radio()
 	// radio.begin(3000000); // Test this
 	radio.begin();
 
-	//radio.setDataRate(2); // Linux expression
+	// radio.setDataRate(2); // Linux expression
 	radio.setDataRate(RF24_250KBPS); // Windows expression in case we have to debug with Windows
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//  radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
@@ -308,7 +305,6 @@ void Init_Radio()
 	//  we have teh chanels 21-30 and 81-90
 
 	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
-	
 
 	radio.openReadingPipe(1, address_c);
 	radio.startListening();
@@ -323,18 +319,22 @@ void Init_Ultrasonic()
 	pinMode(PIN_Ultrasonic_echo, INPUT);  // Sets the PIN_Ultrasonic_echo as an Input
 }
 
-void Init_DS18B20() {
-    sensors.begin(); // Discover devices
+void Init_DS18B20()
+{
+	sensors.begin(); // Discover devices
 
-    DeviceAddress addr;
-    if (sensors.getAddress(addr, 0)) {
-        sensors.setResolution(addr, 10);
-        DEBUG_PRINT("Requested resolution: 10\n");
-        DEBUG_PRINT("Actual resolution now: ");
-        DEBUG_PRINTLN(sensors.getResolution(addr));
-    } else {
-        DEBUG_PRINTLN("ERROR: No DS18B20 sensor found!");
-    }
+	DeviceAddress addr;
+	if (sensors.getAddress(addr, 0))
+	{
+		sensors.setResolution(addr, 10);
+		DEBUG_PRINT("Requested resolution: 10\n");
+		DEBUG_PRINT("Actual resolution now: ");
+		DEBUG_PRINTLN(sensors.getResolution(addr));
+	}
+	else
+	{
+		DEBUG_PRINTLN("ERROR: No DS18B20 sensor found!");
+	}
 }
 
 void Init_CanSat()
@@ -382,22 +382,24 @@ void Init_servo()
 }
 
 // Low level raw reader, adapted from Dallas Temperature Deivde
-int16_t readDS18B20Raw(DallasTemperature &sensor, uint8_t index = 0) {
-    DeviceAddress addr;
-    if (!sensor.getAddress(addr, index)) return DEVICE_DISCONNECTED_RAW;
-    uint8_t scratchPad[9];
-    if (!sensor.readScratchPad(addr, scratchPad)) return DEVICE_DISCONNECTED_RAW;
+int16_t readDS18B20Raw(DallasTemperature &sensor, uint8_t index = 0)
+{
+	DeviceAddress addr;
+	if (!sensor.getAddress(addr, index))
+		return DEVICE_DISCONNECTED_RAW;
+	uint8_t scratchPad[9];
+	if (!sensor.readScratchPad(addr, scratchPad))
+		return DEVICE_DISCONNECTED_RAW;
 
-    return (int16_t)((scratchPad[1] << 8) | scratchPad[0]); // LSB + MSB
+	return (int16_t)((scratchPad[1] << 8) | scratchPad[0]); // LSB + MSB
 }
 
-
 // Needed to really measure raw data
-void Measurement_DS18B20() {
+void Measurement_DS18B20()
+{
 	sensors.requestTemperatures(); // This is needed to update the sensor
 	Measurement.temp = readDS18B20Raw(sensors);
 }
-
 
 void Measurement_Ultrasonic()
 {
@@ -409,7 +411,7 @@ void Measurement_Ultrasonic()
 	delayMicroseconds(10);
 	digitalWrite(PIN_Ultrasonic_trig, LOW);
 	// Reads the PIN_Ultrasonic_echo, returns the sound wave travel time in microseconds
-	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH,12000); //Maximum delay of 12000 when timeout
+	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH, 12000); // Maximum delay of 12000 when timeout
 	// Calculating the distance
 	float distance_cm = duration * 0.0343 / 2.0;
 	Measurement.distance = (uint8_t)(distance_cm + 0.5); // round to nearest cm
@@ -442,14 +444,12 @@ void Measurement_accelerometer()
 	Measurement.accelerometer_X = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // X-axis value; // = (c1+c2)/2
 	Measurement.accelerometer_Y = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Y-axis value;
 	Measurement.accelerometer_Z = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Z-axis value;
-	
 }
-
 
 // This might be the way to get raw data from the accelerometer
 void Measurement_hall_effect()
 {
-	mag.read(); 
+	mag.read();
 
 	/*
 	int16_t rawX = mag.raw.x;
@@ -474,9 +474,7 @@ void Radio_send()
 	{
 		return; // No data to sent
 	}
-	//DEBUG_PRINT("Sending ");
-
-
+	// DEBUG_PRINT("Sending ");
 
 	// Getting the size of datae
 	uint16 size = Data_entry_size(Data.first_entry);
@@ -499,16 +497,16 @@ void Radio_send()
 void Radio_read()
 {
 
-	if (radio.available()) {
-			radio.read(CanSat.command, 3);
-			CanSat.command[3] = '\0';  // Null-terminate the string
+	if (radio.available())
+	{
+		radio.read(CanSat.command, 3);
+		CanSat.command[3] = '\0'; // Null-terminate the string
 
-			DEBUG_PRINT("Command received: ");
-			DEBUG_PRINTLN(CanSat.command[0]);
+		DEBUG_PRINT("Command received: ");
+		DEBUG_PRINTLN(CanSat.command[0]);
 
-			Run_Commands();  // Handle the command logic
+		Run_Commands(); // Handle the command logic
 	}
-
 }
 
 /*
@@ -518,49 +516,66 @@ or at which rate the measurement data is to be sent.
 Third element is the command that ground wants to change it output to. For sensors '1' is an active state and '2' is dormant.
 */
 
-void Run_Commands() {
-	if (strlen(CanSat.command) != 3) return;
+void Run_Commands()
+{
+	if (strlen(CanSat.command) != 3)
+		return;
 
 	char type = toupper(CanSat.command[0]);
 	char sensor = toupper(CanSat.command[1]);
 	char action = toupper(CanSat.command[2]);
 
-	if (type == 'S') {
+	if (type == 'S')
+	{
 		bool enable = (action == 'I'); // I = enable (on), O = disable (off)
 
-		if (sensor == 'T') {
+		if (sensor == 'T')
+		{
 			CanSat.Sensor_Temperature = enable;
-			if (!enable) Measurement.temp = 0;
-		} else if (sensor == 'U') {
+			if (!enable)
+				Measurement.temp = 0;
+		}
+		else if (sensor == 'U')
+		{
 			CanSat.Sensor_Ultrasonic = enable;
-			if (!enable) Measurement.distance = 0;
-		} else if (sensor == 'A') {
+			if (!enable)
+				Measurement.distance = 0;
+		}
+		else if (sensor == 'A')
+		{
 			CanSat.Sensor_Acceleration = enable;
-			if (!enable) {
+			if (!enable)
+			{
 				Measurement.accelerometer_X = 0;
 				Measurement.accelerometer_Y = 0;
 				Measurement.accelerometer_Z = 0;
 			}
-		} else if (sensor == 'H') {
+		}
+		else if (sensor == 'H')
+		{
 			CanSat.Sensor_Halleffect = enable;
-			if (!enable) {
+			if (!enable)
+			{
 				Measurement.calX = 0;
 				Measurement.calY = 0;
 				Measurement.calZ = 0;
 			}
 		}
-	} else if (type == 'C') {
-		if (sensor == 'B' && action == 'B') {
+	}
+	else if (type == 'C')
+	{
+		if (sensor == 'B' && action == 'B')
+		{
 			CanSat.currentDataSendingMode = burstMode;
-		} else if (sensor == 'S' && action == 'S') {
+		}
+		else if (sensor == 'S' && action == 'S')
+		{
 			CanSat.currentDataSendingMode = surveyMode;
 		}
 	}
 	else
 	{
-		Serial.println("Not a correct command. Try again");
+		DEBUG_PRINTLN("Not a correct command. Try again");
 	}
 	CanSat.command[0] = 0;
 }
-
-
