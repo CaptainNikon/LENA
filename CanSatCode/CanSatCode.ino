@@ -19,7 +19,7 @@
 // #include <Servo.h>
 
 // Comment out the line before, to remove all the serial print -> smaller code -> more code for storage
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__);
@@ -78,7 +78,7 @@ struct CanSat_struct {
 		bool Sensor_Halleffect : 1;
 		bool Sensor_Temperature : 1;
 		bool Sensor_Acceleration : 1;
-		int8_t timer_count : 4;
+		uint8_t timer_count : 4;
 	};
 	int currentDataSendingMode;
 	long pullrate = 250;
@@ -188,11 +188,11 @@ void setup()
 
 	// Initialization function
 	Init_CanSat(); // Dose nothing right now
-	Init_Radio();
-	Init_Ultrasonic();
+	//Init_Radio();
+	//Init_Ultrasonic();
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
-	Init_DS18B20();
+	//Init_DS18B20();
 	// Init_servo();
 
 }
@@ -239,31 +239,30 @@ void loop()
 	if (currentMillis - previousMillis >= CanSat.pullrate/10)
 	{
 		// The loop will run 10 times before it gos in to this if statement, and take the last measurments
-		if(CanSat.timer_count==0){
+		if(CanSat.timer_count==10){
 		#ifdef DEBUG
 			loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
 			loop_counter = 0;
 			previousMillis = currentMillis;
 			DEBUG_PRINT("Messurment pull rate: ");
 			DEBUG_PRINTLN(loop_timer);
+			print_values();
 		#endif
 		
 			CanSat.timer_count=0; // Reset counter
 			// Take the measurement
 			if (CanSat.Sensor_Temperature)
 			{
-				Measurement_DS18B20();
+				//Measurement_DS18B20();
 			}
 
 			if (CanSat.Sensor_Ultrasonic)
 			{
-				Measurement_Ultrasonic();
+				//Measurement_Ultrasonic();
 			}
 			Move_meassurment_to_data();
 		}
 		if (CanSat.Sensor_Acceleration)
-
-		
 		{
 			Measurement_accelerometer();
 		}
@@ -271,17 +270,17 @@ void loop()
 		{
 			Measurement_hall_effect();
 		}
-
+		
 		++CanSat.timer_count;
 	}
-
+	
 	// print_values();
 
 	// Move the Measurement to Data
 	//Move_meassurment_to_data(); This should be needed here no ? Samuel
 	// Radio over the data from Data
-	Radio_send();
-	Radio_read();
+	//Radio_send();
+	//Radio_read();
 	Run_Commands();
 
 	// Servo_move();
@@ -340,8 +339,8 @@ void Init_DS18B20() {
 
 void Init_CanSat()
 {
-	CanSat.Sensor_Acceleration = false;
-	CanSat.Sensor_Halleffect = false;
+	CanSat.Sensor_Acceleration = true;
+	CanSat.Sensor_Halleffect = true;
 	CanSat.Sensor_Temperature = false;
 	CanSat.Sensor_Ultrasonic = false;
 }
@@ -443,6 +442,7 @@ void Measurement_accelerometer()
 	Measurement.accelerometer_X = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // X-axis value; // = (c1+c2)/2
 	Measurement.accelerometer_Y = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Y-axis value;
 	Measurement.accelerometer_Z = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Z-axis value;
+	
 }
 
 
