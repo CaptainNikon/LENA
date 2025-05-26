@@ -3,11 +3,7 @@
 
 // Careful when using this code, two libraries were chaned so the code can run
 // mag.read is not available as a public function this has to be copied from private to public in #include <Adafruit_Sensor.h>
-<<<<<<< HEAD
-//
-=======
-// 
->>>>>>> origin/main
+
 
 #include <SPI.h>
 #include <nRF24L01.h>
