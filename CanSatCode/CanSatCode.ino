@@ -3,11 +3,6 @@
 
 // Careful when using this code, two libraries were chaned so the code can run
 // mag.read is not available as a public function this has to be copied from private to public in #include <Adafruit_Sensor.h>
-<<<<<<< HEAD
-//
-=======
-// 
->>>>>>> origin/main
 
 #include <SPI.h>
 #include <nRF24L01.h>
@@ -192,11 +187,11 @@ void setup()
 
 	// Initialization function
 	Init_CanSat(); // Dose nothing right now
-	// Init_Radio();
-	// Init_Ultrasonic();
+	Init_Radio();
+	Init_Ultrasonic();
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
-	// Init_DS18B20();
+	Init_DS18B20();
 	//  Init_servo();
 
 }
@@ -259,12 +254,12 @@ void loop()
 			// Take the measurement
 			if (CanSat.Sensor_Temperature)
 			{
-				// Measurement_DS18B20();
+				Measurement_DS18B20();
 			}
 
 			if (CanSat.Sensor_Ultrasonic)
 			{
-				// Measurement_Ultrasonic();
+				Measurement_Ultrasonic();
 			}
 			Move_meassurment_to_data();
 		}
@@ -286,8 +281,8 @@ void loop()
 	// Move_meassurment_to_data(); This should be needed here no ? Samuel
 
 	// Radio over the data from Data
-	// Radio_send();
-	// Radio_read();
+	Radio_send();
+	Radio_read();
 	Run_Commands();
 
 	// Servo_move();
@@ -350,9 +345,8 @@ void Init_DS18B20()
 
 void Init_CanSat()
 {
-	CanSat.Sensor_Acceleration = true;
-	CanSat.Sensor_Halleffect = true;
-
+	CanSat.Sensor_Acceleration = false;
+	CanSat.Sensor_Halleffect = false;
 	CanSat.Sensor_Temperature = false;
 	CanSat.Sensor_Ultrasonic = false;
 }
@@ -446,17 +440,29 @@ void Measurement_accelerometer()
 						Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
 						Z_out = Z_out / 256;
 						*/
-	/*
+
 	// Old code
 	int16 X_out, Y_out, Z_out;			// Outputs
 	// Reading the values, and 10 bit to int8
-	X_out = (Wire.read() | Wire.read() << 8) >> 2; // X-axis value
-	Y_out = (Wire.read() | Wire.read() << 8) >> 2; // Y-axis value
-	Z_out = (Wire.read() | Wire.read() << 8) >> 2; // Z-axis value
-*/
+	int16_t x, y, z;
+	byte buffer[6];
+	for (int i = 0; i < 6; i++) {
+		buffer[i] = Wire.read();
+	}
+	x = (int16_t)((buffer[1] << 8) | buffer[0]);
+	y = (int16_t)((buffer[3] << 8) | buffer[2]);
+	z = (int16_t)((buffer[5] << 8) | buffer[4]);
+
+	Measurement.accelerometer_X = x;
+	Measurement.accelerometer_Y = y;
+	Measurement.accelerometer_Z = z;
+
+
+	/*
 	Measurement.accelerometer_X = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // X-axis value; // = (c1+c2)/2
 	Measurement.accelerometer_Y = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Y-axis value;
 	Measurement.accelerometer_Z = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Z-axis value;
+	*/
 }
 
 // This might be the way to get raw data from the accelerometer

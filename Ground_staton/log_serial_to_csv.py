@@ -170,14 +170,12 @@ def serial_reader(value_log, command_log):
                 command_log.insert(tk.END, f"[Error] {e}\n")
                 command_log.see(tk.END) 
 
-        # Final saving on exit
         if raw_buffer:
             raw_writer.writerows(raw_buffer)
         if calib_buffer:
             calib_writer.writerows(calib_buffer)
 
 
-# === SEND COMMAND ===
 def send_command(entry_widget, command_log):
     cmd = entry_widget.get().strip()
     if cmd:
