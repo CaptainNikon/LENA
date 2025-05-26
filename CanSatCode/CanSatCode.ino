@@ -66,6 +66,7 @@ unsigned int surveyMode = 500; // Sends data 2 times per sec
 
 // CanSat structure
 
+
 struct CanSat_struct
 {
 	char command[4] = {0}; // 3-character command + null terminator
@@ -88,16 +89,16 @@ struct CanSat_struct
 // __attribute__((packed))
 struct __attribute__((packed)) Measurement_struct
 {
-	uint16 time = 0;
-	uint8 distance = 0;
-	int16 temp = 0;
-	int16 accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
-	int16 calX = 0, calY = 0, calZ = 0;
+	uint16_t time = 0;
+	uint8_t distance = 0;
+	int16_t temp = 0;
+	int16_t accelerometer_X = 0, accelerometer_Y = 0, accelerometer_Z = 0;
+	int16_t calX = 0, calY = 0, calZ = 0;
 };
 struct Data_struct
 {
-	uint16 first_entry = 0;		  // First entries with data
-	uint16 end_entry = 0;		  // First empty entriy
+	uint16_t first_entry = 0;		  // First entries with data
+	uint16_t end_entry = 0;		  // First empty entriy
 	byte data[STORAGE_SIZE + 20]; // Data storage
 };
 
@@ -285,7 +286,6 @@ void loop()
 	Radio_send();
 	Radio_read();
 	Run_Commands();
-	Servo_move();
 	delay(50);
 }
 
@@ -383,10 +383,15 @@ void Init_hall_effect()
 	}
 }
 
-void Init_servo()
-{
-	myservo.attach(6);
+void Init_servo() {
+  myservo.attach(6);
+  CanSat.Servo_pos = 0;
+  myservo.write(180);
+  DEBUG_PRINTLN("Servo initialized to 0°");
+	delay(50);
+	myservo.detach();
 }
+
 
 
 // Low level raw reader, adapted from Dallas Temperature Deivde
@@ -508,6 +513,25 @@ void Radio_send()
 	}
 }
 
+#define SERVO_DELAY 2  // milliseconds between steps (smaller = smoother, larger = slower)
+
+void move_servo_smoothly(int from, int to) {
+  myservo.attach(6);
+  if (from < to) {
+    for (int pos = from; pos <= to; pos++) {
+      myservo.write(pos);
+      delay(SERVO_DELAY);
+    }
+  } else {
+    for (int pos = from; pos >= to; pos--) {
+      myservo.write(pos);
+      delay(SERVO_DELAY);
+    }
+  }
+  myservo.detach();
+}
+
+
 void Radio_read()
 {
 
@@ -515,6 +539,7 @@ void Radio_read()
 	{
 		radio.read(CanSat.command, 3);
 		CanSat.command[3] = '\0'; // Null-terminate the string
+		
 
 		DEBUG_PRINT("Command received: ");
 		DEBUG_PRINTLN(CanSat.command[0]);
@@ -579,23 +604,25 @@ void Run_Commands()
 				Measurement.calZ = 0;
 			}
 		}
-		else if (sensor == 'S') // Servo
+		else if (sensor == 'S')
 		{
+			DEBUG_PRINTLN("Command received");
 			CanSat.Sensor_Servo = enable;
 			if (enable)
 			{
-				CanSat.Servo_pos = 180;
-				myservo.write(CanSat.Servo_pos);
-				DEBUG_PRINTLN("Servo ON (180°)");
+				DEBUG_PRINTLN("180 degr");
+				move_servo_smoothly(180, 0);
+				CanSat.Servo_pos = 0;
 			}
 			else
 			{
-				CanSat.Servo_pos = 0;
-				myservo.write(CanSat.Servo_pos);
-				DEBUG_PRINTLN("Servo OFF (0°)");
+				DEBUG_PRINTLN("0 degr");
+				move_servo_smoothly(0, 180);
+				CanSat.Servo_pos = 180;
+			}
 			}
 		}
-	}
+
 
 	else if (type == 'C')
 	{
