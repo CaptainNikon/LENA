@@ -66,9 +66,9 @@ def calibrate(values):
         timep = float(values[0])/100
         distance = 0.919*float(values[1])+0.625 #Calibrated
         temp_c = 0.961*(float(values[2])*(1/16))+0.641 #Calibrated
-        acc_x = float(values[3]) * 0.015748
-        acc_y = float(values[4]) * 0.015748
-        acc_z = float(values[5]) * 0.015748
+        acc_x = float(values[3])*0.25 * 0.015748
+        acc_y = float(values[4])*0.25 * 0.015748
+        acc_z = float(values[5])*0.25 * 0.015748
         raw_acc = np.array([acc_x, acc_y, acc_z, 1.0])
         calibrated_acc = Clbmtrx_acc @ raw_acc # Calibrated
         acc_x_c, acc_y_c, acc_z_c = calibrated_acc #Calibrated
@@ -306,7 +306,7 @@ def add_control_buttons(command_frame, command_log):
     create_toggle_button("Hall", "SHI", "SHO")
 
     # Servo toggle with confirmation
-    create_toggle_button("Servo", "SS1", "SS0", confirm=True)
+    create_toggle_button("Servo", "SSI", "SSO", confirm=True)
 
     # Burst/Survey toggle
     mode_state = {"burst": False}
@@ -345,7 +345,6 @@ def start_gui():
     # Command log
     command_log = scrolledtext.ScrolledText(root, width=100, height=5)
     command_log.pack(padx=10, pady=(0, 10))
-
 
     command_frame = tk.Frame(root)
     command_frame.pack(pady=5)

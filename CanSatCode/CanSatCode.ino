@@ -15,7 +15,7 @@
 #include <Adafruit_Sensor.h>
 #include <printf.h>
 
-// #include <Servo.h>
+#include <Servo.h>
 
 // Comment out the line before, to remove all the serial print -> smaller code -> more code for storage
 #define DEBUG
@@ -46,7 +46,7 @@ RF24 radio(CE_PIN, SPI_Radio, 1000000); // CE, CSN
 OneWire oneWire(DS18B20_PIN);			// setup the oneWire to communicate with sensor
 DallasTemperature sensors(&oneWire);	// send the oneWire reference to DallasTemperature
 Adafruit_LIS2MDL mag = Adafruit_LIS2MDL();
-// Servo myservo;  // create servo object to control a servo
+Servo myservo;  // create servo object to control a servo
 
 // Some good definition
 #define uint8 uint8_t
@@ -78,6 +78,7 @@ struct CanSat_struct
 		bool Sensor_Halleffect : 1;
 		bool Sensor_Temperature : 1;
 		bool Sensor_Acceleration : 1;
+		bool Sensor_Servo : 1;
 		uint8_t timer_count : 4;
 	};
 	int currentDataSendingMode;
@@ -192,7 +193,7 @@ void setup()
 	Init_accelerometer(); // This function crashes
 	Init_hall_effect();
 	Init_DS18B20();
-	//  Init_servo();
+	Init_servo();
 
 }
 
@@ -284,8 +285,7 @@ void loop()
 	Radio_send();
 	Radio_read();
 	Run_Commands();
-
-	// Servo_move();
+	Servo_move();
 	delay(50);
 }
 
@@ -349,6 +349,7 @@ void Init_CanSat()
 	CanSat.Sensor_Halleffect = false;
 	CanSat.Sensor_Temperature = false;
 	CanSat.Sensor_Ultrasonic = false;
+	CanSat.Sensor_Servo = false;
 }
 
 void Init_accelerometer()
@@ -384,8 +385,9 @@ void Init_hall_effect()
 
 void Init_servo()
 {
-	// myservo.attach(6);
+	myservo.attach(6);
 }
+
 
 // Low level raw reader, adapted from Dallas Temperature Deivde
 int16_t readDS18B20Raw(DallasTemperature &sensor, uint8_t index = 0)
@@ -431,16 +433,6 @@ void Measurement_accelerometer()
 	Wire.write(0x32); // Start with register 0x32 (ACCEL_XOUT_H)
 	Wire.endTransmission(false);
 	Wire.requestFrom(ADXL345, 6, true); // Read 6 registers total, each axis value is stored in 2 registers
-										/*
-						float X_out, Y_out, Z_out; // Outputs
-						X_out = (Wire.read() | Wire.read() << 8); // X-axis value
-						X_out = X_out / 256;					  // For a range of +-2g, we need to divide the raw values by 256, according to the datasheet
-						Y_out = (Wire.read() | Wire.read() << 8); // Y-axis value
-						Y_out = Y_out / 256;
-						Z_out = (Wire.read() | Wire.read() << 8); // Z-axis value
-						Z_out = Z_out / 256;
-						*/
-
 	// Old code
 	int16 X_out, Y_out, Z_out;			// Outputs
 	// Reading the values, and 10 bit to int8
@@ -458,7 +450,7 @@ void Measurement_accelerometer()
 	Measurement.accelerometer_Z = z;
 
 
-	/*
+	/* //Samuels code problem is wrong bit shifiting and now we only need to read once
 	Measurement.accelerometer_X = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // X-axis value; // = (c1+c2)/2
 	Measurement.accelerometer_Y = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Y-axis value;
 	Measurement.accelerometer_Z = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Z-axis value;
@@ -482,8 +474,10 @@ void Measurement_hall_effect()
 
 void Servo_move()
 {
-
-	// myservo.write(CanSat.Servo_pos);              // tell servo to go to position in variable 'pos'
+	if (CanSat.Sensor_Servo)
+	{
+	myservo.write(CanSat.Servo_pos);
+	}
 }
 
 void Radio_send()
@@ -585,7 +579,24 @@ void Run_Commands()
 				Measurement.calZ = 0;
 			}
 		}
+		else if (sensor == 'S') // Servo
+		{
+			CanSat.Sensor_Servo = enable;
+			if (enable)
+			{
+				CanSat.Servo_pos = 180;
+				myservo.write(CanSat.Servo_pos);
+				DEBUG_PRINTLN("Servo ON (180°)");
+			}
+			else
+			{
+				CanSat.Servo_pos = 0;
+				myservo.write(CanSat.Servo_pos);
+				DEBUG_PRINTLN("Servo OFF (0°)");
+			}
+		}
 	}
+
 	else if (type == 'C')
 	{
 		if (sensor == 'B' && action == 'B')

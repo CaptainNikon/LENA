@@ -187,9 +187,6 @@ if (Serial.available()) {
     Serial.println("Invalid command (must be exactly 3 characters)");
   }
 }
-
-
-
   // Occasionally sample DHT and update display
   unsigned long now = millis();
   if (now - lastUpdateTime >= updateInterval) {
