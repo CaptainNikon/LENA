@@ -161,8 +161,10 @@ if (Serial.available()) {
   }
 
   if (command.length() == 3) {  // Enforce exact command length if you only expect 3-character commands
-    char commandBuffer[4]; // 3 chars + null terminator
+    char commandBuffer[4];
     command.toCharArray(commandBuffer, sizeof(commandBuffer));
+    commandBuffer[3] = '\0'; // safety null terminator
+
 
     bool success = false;
     radio.stopListening();
@@ -197,11 +199,8 @@ if (Serial.available()) {
 
     // Update OLED display
     display_ground();
-
-    //debug_print();
   }
 }
-
 
 void display_ground() {
 	int precision = 5;
