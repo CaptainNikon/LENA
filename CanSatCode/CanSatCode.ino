@@ -34,11 +34,11 @@
 #ifdef DEBUG
 	#define DEBUG_PRINT(...) Serial.print(__VA_ARGS__);
 	#define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__);
-	#define STORAGE_SIZE 400
+	#define STORAGE_SIZE 600
 #else
 	#define DEBUG_PRINT(...) ;
 	#define DEBUG_PRINTLN(...) ;
-	#define STORAGE_SIZE 400+412
+	#define STORAGE_SIZE 600+412
 #endif
 
 
@@ -100,7 +100,7 @@ struct Data_struct
 {
 	uint16_t first_entry = 0;		  // First entries with data
 	uint16_t end_entry = 0;		  // First empty entriy
-	byte data[STORAGE_SIZE + 20]; // Data storage
+	byte data[STORAGE_SIZE + 17]; // Data storage
 };
 
 // Declear our structs
