@@ -15,6 +15,23 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+from datetime import datetime
+
+# Generate a timestamp
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+# Define the folder path one level above the current script
+base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+save_dir = os.path.join(base_dir, "measurements")
+
+# Create the folder if it doesn't exist
+os.makedirs(save_dir, exist_ok=True)
+
+# Define filenames
+raw_filename = os.path.join(save_dir, f"log_raw_output_{timestamp}.csv")
+calib_filename = os.path.join(save_dir, f"log_calibrated_output_{timestamp}.csv")
+
+
 # Config of the Arduino port
 serial_port = 'COM3'
 baud_rate = 115200
@@ -23,8 +40,6 @@ baud_rate = 115200
 raw_buffer = []
 calib_buffer = []
 FLUSH_THRESHOLD = 10 # Save every n lines
-raw_filename = 'log_raw_output.csv'
-calib_filename = 'log_calibrated_output.csv'
 
 # For tracking data rate
 data_rate_counter = 0
@@ -41,6 +56,12 @@ Clbmtrx_acc = np.array([
     [ 0.9816, -0.0377, -0.0231, -0.0151],
     [-0.0008,  1.0021,  0.0005, -0.0559],
     [ 0.0363,  0.0023,  1.0283, -0.0195]
+])
+
+Clbmtrx_mag = np.array([
+    [ 0.961112436, -0.00508019995, -0.00578180416,  31.8438917],
+    [-0.0454196699,  1.00442557,    0.00260023486,  -9.20646235],
+    [ 0.0150823485, -0.0574297197,  0.990598512,    72.7712746]
 ])
 
 predefined_commands = [
@@ -73,21 +94,26 @@ def calibrate(values):
         timep = float(values[0])/100
         distance = 0.919*float(values[1])+0.625 #Calibrated
         temp_c = 0.961*(float(values[2])*(1/16))+0.641 #Calibrated
+
         acc_x = float(values[3])*0.25 * 0.015748
         acc_y = float(values[4])*0.25 * 0.015748
         acc_z = float(values[5])*0.25 * 0.015748
         raw_acc = np.array([acc_x, acc_y, acc_z, 1.0])
         calibrated_acc = Clbmtrx_acc @ raw_acc # Calibrated
         acc_x_c, acc_y_c, acc_z_c = calibrated_acc #Calibrated
-        
+
         mag_x = float(values[6])*MAG_SCALE
         mag_y = float(values[7])*MAG_SCALE
         mag_z = float(values[8])*MAG_SCALE
+        raw_mag = np.array([mag_x, mag_y, mag_z, 1.0])
+        calibrated_mag = Clbmtrx_mag @ raw_mag
+        mag_x_c, mag_y_c, mag_z_c = calibrated_mag # Calibrated
+        
         ground_t = 1.8079*float(values[9])-28.5537 # Calibrated
         ground_h = 0.858*float(values[10])+0.005 #Calibrated
     except Exception as e:
         raise ValueError(f"Calibration failed: {e}")
-    return [round(x, 5) for x in [timep,distance,temp_c,acc_x_c,acc_y_c,acc_z_c,mag_x,mag_y,mag_z,ground_t,ground_h]]
+    return [round(x, 5) for x in [timep,distance,temp_c,acc_x_c,acc_y_c,acc_z_c,mag_x_c,mag_y_c,mag_z_c,ground_t,ground_h]]
 
 
 def update_data_rate(label):
