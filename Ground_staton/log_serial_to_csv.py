@@ -1,19 +1,19 @@
 # Code to run the data acquisation of the ground station
-# All modules needed can be installed using: pip install pyserial matplotlib numpy os
+# All modules needed can be installed using: pip install pyserial matplotlib numpy
 
-import serial
-import threading
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import scrolledtext
+import os
 import time
 import csv
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-import numpy as np
+import threading
+import serial
 from collections import deque
-import os
-from tkinter import ttk
+
+import tkinter as tk
+from tkinter import messagebox, scrolledtext, ttk
+
+import numpy as np
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Config of the Arduino port
 serial_port = 'COM3'
@@ -87,19 +87,8 @@ def calibrate(values):
         ground_h = 0.858*float(values[10])+0.005 #Calibrated
     except Exception as e:
         raise ValueError(f"Calibration failed: {e}")
-    return [f"{x:.5f}" for x in [
-    round(timep, 5),
-    round(distance, 5),
-    round(temp_c, 5),
-    round(acc_x_c, 5),
-    round(acc_y_c, 5),
-    round(acc_z_c, 5),
-    round(mag_x, 5),
-    round(mag_y, 5),
-    round(mag_z, 5),
-    round(ground_t, 5),
-    round(ground_h, 5)
-]]
+    return [round(x, 5) for x in [timep,distance,temp_c,acc_x_c,acc_y_c,acc_z_c,mag_x,mag_y,mag_z,ground_t,ground_h]]
+
 
 def update_data_rate(label):
     global data_rate_counter, last_rate_time, current_data_rate
@@ -401,12 +390,6 @@ def start_gui():
     button_frame.pack(pady=(0, 10), fill="x")
 
     add_control_buttons(button_frame, command_log)
-
-    
-
-    # --- Dark Mode Toggle ---
-    #toggle_button = tk.Button(frame, text="Switch to Dark Mode", command=toggle_theme)
-    #toggle_button.pack(pady=(0, 10), anchor="e")
 
     # --- Plot Area ---
     create_plots(frame)
