@@ -130,10 +130,10 @@ void setup()
 }
 
 void loop() {
-  // Always prioritize reading from the radio
   uint8_t pipe;
   if (radio.available(&pipe)) {
     radio.read(&Measurement, sizeof(Measurement));
+    //radio.writeAckPayload(1, &Measurement, sizeof(Measurement));
     //radio.flush_rx();
     // Send one clean tab-separated line over serial
       Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
