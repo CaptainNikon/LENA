@@ -14,25 +14,7 @@
 #include <Adafruit_LIS2MDL.h>
 #include <Adafruit_Sensor.h>
 #include <printf.h>
-
 #include <Servo.h>
-
-// Comment out the line before, to remove all the serial print -> smaller code -> more code for storage
-#define DEBUG
-
-#ifdef DEBUG
-#define DEBUG_PRINT(...) Serial.print(__VA_ARGS__);
-#define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__);
-#else
-#define DEBUG_PRINT(...) ;
-#define DEBUG_PRINTLN(...) ;
-#endif
-
-#define STORAGE_SIZE 500
-
-// Defins the data storage size in bytes
-
-// RF24 radio(7, 8); // CE, CSN
 
 // Defins the pins
 #define PIN_Ultrasonic_trig 3 // Ultrasonic triger pin
@@ -40,6 +22,31 @@
 #define SPI_Radio 8			  // Radio CSN pin
 #define CE_PIN 7
 #define DS18B20_PIN 2 // Dataline is plugged into digital pin 2
+#define SERVO_DELAY 2  // milliseconds between steps (smaller = smoother, larger = slower)
+#define burstMode  250  // Sends data 10 times per sec
+#define surveyMode  1000 // Sends data 2 times per sec
+#define Measuring_ratio 2
+
+
+// Comment out the line before, to remove all the serial print -> smaller code -> more code for storage
+#define DEBUG
+
+#ifdef DEBUG
+	#define DEBUG_PRINT(...) Serial.print(__VA_ARGS__);
+	#define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__);
+	#define STORAGE_SIZE 600
+#else
+	#define DEBUG_PRINT(...) ;
+	#define DEBUG_PRINTLN(...) ;
+	#define STORAGE_SIZE 600+412
+#endif
+
+
+// Defins the data storage size in bytes
+
+// RF24 radio(7, 8); // CE, CSN
+
+
 int ADXL345 = 0x1D;	  // Adress for DRFduino
 
 RF24 radio(CE_PIN, SPI_Radio, 1000000); // CE, CSN
@@ -56,18 +63,13 @@ Servo myservo;  // create servo object to control a servo
 const byte address_g[7] = "Ground";
 const byte address_c[6] = "Canst";
 
-// For LIS2MDL
-float sumX = 0, sumY = 0, sumZ = 0;
-unsigned int sampleCount = 0;
-unsigned long lastPrintTime = 0;
 
-unsigned int burstMode = 100;  // Sends data 10 times per sec
-unsigned int surveyMode = 500; // Sends data 2 times per sec
 
 // CanSat structure
 
 
-struct CanSat_struct
+
+struct  __attribute__((packed)) CanSat_struct
 {
 	char command[4] = {0}; // 3-character command + null terminator
 	int8_t Servo_pos = 0;
@@ -81,9 +83,9 @@ struct CanSat_struct
 		bool Sensor_Acceleration : 1;
 		bool Sensor_Servo : 1;
 		uint8_t timer_count : 4;
+		uint8_t No_sending_count : 4;
 	};
-	int currentDataSendingMode;
-	long pullrate = 250;
+	uint16_t currentDataSendingMode=1000;
 };
 
 // __attribute__((packed))
@@ -99,7 +101,7 @@ struct Data_struct
 {
 	uint16_t first_entry = 0;		  // First entries with data
 	uint16_t end_entry = 0;		  // First empty entriy
-	byte data[STORAGE_SIZE + 20]; // Data storage
+	byte data[STORAGE_SIZE + 17]; // Data storage
 };
 
 // Declear our structs
@@ -125,12 +127,12 @@ void Init_hall_effect();
 void Init_servo();
 void Init_DS18B20();
 
-uint8 Meassurment_size()
+uint8_t Meassurment_size()
 {
 	uint8 size = sizeof(Measurement_struct);
 	return size;
 }
-uint8 Data_entry_size(uint16 entry)
+uint8_t Data_entry_size(uint16 entry)
 {
 	return sizeof(Measurement_struct);
 }
@@ -140,7 +142,7 @@ void Data_first_delete()
 	uint16 size = Data_entry_size(Data.first_entry);
 
 	// Sett the memory to zero, byte by byte
-	for (int i = 0; i < size; i++)
+	for (int16_t i = 0; i < size; i++)
 	{
 		Data.data[(i + Data.first_entry)] = 0;
 	}
@@ -184,7 +186,9 @@ void Move_meassurment_to_data()
 }
 void setup()
 {
+	#ifdef DEBUG
 	Serial.begin(115200);
+	#endif
 	Wire.begin();
 
 	// Initialization function
@@ -223,35 +227,40 @@ void print_values()
 	DEBUG_PRINTLN(Measurement.calZ);
 }
 
+#ifdef DEBUG
 int loop_counter = 0;		 // holds the count for every loop pass
 long loop_timer_now = 0;	 // holds the current millis
 long previous_millis = 0;	 // holds the previous millis
 float loop_timer = 0;		 // holds difference (loop_timer_now - previous_millis) = total execution time
 int loop_test_times = 20000; // Run loop 20000 times then calculate time
-
+#endif
 unsigned long previousMillis = 0; // will store last time LED was updated
 // constants won't change:
 
+
+
 void loop()
 {
-	loop_counter++;
 
-	unsigned long currentMillis = millis();
-	if (currentMillis - previousMillis >= CanSat.pullrate / 10)
-	{
-		// The loop will run 10 times before it gos in to this if statement, and take the last measurments
-		if (CanSat.timer_count == 10)
-
-		{
 #ifdef DEBUG
-			loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
-			loop_counter = 0;
-			previousMillis = currentMillis;
-			DEBUG_PRINT("Messurment pull rate: ");
-			DEBUG_PRINTLN(loop_timer);
-			print_values();
+	loop_counter++;
 #endif
 
+	unsigned long currentMillis = millis();
+	if (currentMillis - previousMillis >= CanSat.currentDataSendingMode / Measuring_ratio)
+	{
+		// The loop will run 10 times before it gos in to this if statement, and take the last measurments
+		previousMillis = currentMillis;
+		if (CanSat.timer_count == Measuring_ratio)
+
+		{
+			#ifdef DEBUG
+				//loop_timer = (((float)loop_counter) * 1000.0) / (currentMillis - previousMillis);
+				//loop_counter = 0;
+				//DEBUG_PRINT("Messurment pull rate: ");
+				//DEBUG_PRINTLN(loop_timer);
+				//print_values();
+			#endif
 			CanSat.timer_count = 0; // Reset counter
 			// Take the measurement
 			if (CanSat.Sensor_Temperature)
@@ -264,6 +273,11 @@ void loop()
 				Measurement_Ultrasonic();
 			}
 			Move_meassurment_to_data();
+			DEBUG_PRINT("Entryis ");
+			DEBUG_PRINT(Data.first_entry);
+			DEBUG_PRINT(" ");
+			DEBUG_PRINTLN(Data.end_entry);
+			DEBUG_PRINTLN("\n");
 		}
 		if (CanSat.Sensor_Acceleration)
 		{
@@ -285,8 +299,7 @@ void loop()
 	// Radio over the data from Data
 	Radio_send();
 	Radio_read();
-	Run_Commands();
-	delay(50);
+	//Run_Commands();
 }
 
 void Init_Radio()
@@ -302,20 +315,21 @@ void Init_Radio()
 	radio.setChannel(21); // set the channel to 21
 	radio.openWritingPipe(address_g);
 	radio.setAutoAck(true);
-	radio.setRetries(5, 15);
+	radio.setRetries(15, 15);
 	radio.setCRCLength(RF24_CRC_16);
 	radio.enableDynamicPayloads();
 
-	//  we have teh chanels 21-30 and 81-90
+	//  we have the chanels 21-30 and 81-90
 
-	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_HIGH when we want high power
+	radio.setPALevel(RF24_PA_LOW); // Change this to RF24_PA_MAX when we want high power
 	
 
 	radio.openReadingPipe(1, address_c);
 	radio.startListening();
-
+#ifdef DEBUG
 	printf_begin();
 	radio.printPrettyDetails();
+#endif
 }
 
 void Init_Ultrasonic()
@@ -331,8 +345,8 @@ void Init_DS18B20()
 	DeviceAddress addr;
 	if (sensors.getAddress(addr, 0))
 	{
-		sensors.setResolution(addr, 10);
-		DEBUG_PRINT("Requested resolution: 10\n");
+		sensors.setResolution(addr, 8);
+		DEBUG_PRINT("Requested resolution: 8\n");
 		DEBUG_PRINT("Actual resolution now: ");
 		DEBUG_PRINTLN(sensors.getResolution(addr));
 	}
@@ -350,6 +364,7 @@ void Init_CanSat()
 	CanSat.Sensor_Temperature = false;
 	CanSat.Sensor_Ultrasonic = false;
 	CanSat.Sensor_Servo = false;
+	CanSat.No_sending_count=0;
 }
 
 void Init_accelerometer()
@@ -427,8 +442,8 @@ void Measurement_Ultrasonic()
 	uint16 duration = pulseIn(PIN_Ultrasonic_echo, HIGH, 12000); // Maximum delay of 12000 when timeout
 
 	// Calculating the distance
-	float distance_cm = duration * 0.0343 / 2.0;
-	Measurement.distance = (uint8_t)(distance_cm + 0.5); // round to nearest cm
+	uint16_t distance_cm = duration / 58;
+	Measurement.distance = (uint8_t)(distance_cm ); // round to nearest cm
 }
 
 void Measurement_accelerometer()
@@ -438,24 +453,24 @@ void Measurement_accelerometer()
 	Wire.write(0x32); // Start with register 0x32 (ACCEL_XOUT_H)
 	Wire.endTransmission(false);
 	Wire.requestFrom(ADXL345, 6, true); // Read 6 registers total, each axis value is stored in 2 registers
-	// Old code
-	int16 X_out, Y_out, Z_out;			// Outputs
+
+
 	// Reading the values, and 10 bit to int8
 	int16_t x, y, z;
 	byte buffer[6];
-	for (int i = 0; i < 6; i++) {
+	for (uint8_t i = 0; i < 6; i++) {
 		buffer[i] = Wire.read();
 	}
 	x = (int16_t)((buffer[1] << 8) | buffer[0]);
 	y = (int16_t)((buffer[3] << 8) | buffer[2]);
 	z = (int16_t)((buffer[5] << 8) | buffer[4]);
 
-	Measurement.accelerometer_X = x;
-	Measurement.accelerometer_Y = y;
-	Measurement.accelerometer_Z = z;
+	Measurement.accelerometer_X = (Measurement.accelerometer_X + x )/2;
+	Measurement.accelerometer_Y = (Measurement.accelerometer_Y + y )/2;
+	Measurement.accelerometer_Z = (Measurement.accelerometer_Z + z )/2;
 
-
-	/* //Samuels code problem is wrong bit shifiting and now we only need to read once
+/*
+	 //Samuels code problem is wrong bit shifiting and now we only need to read once
 	Measurement.accelerometer_X = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // X-axis value; // = (c1+c2)/2
 	Measurement.accelerometer_Y = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Y-axis value;
 	Measurement.accelerometer_Z = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Z-axis value;
@@ -481,7 +496,7 @@ void Servo_move()
 {
 	if (CanSat.Sensor_Servo)
 	{
-	myservo.write(CanSat.Servo_pos);
+		myservo.write(CanSat.Servo_pos);
 	}
 }
 
@@ -500,22 +515,29 @@ void Radio_send()
 
 	radio.stopListening();
 	// radio.stopListening();
-	bool sent = radio.write(&(Data.data[Data.first_entry]), size);
+	bool sent = radio.write( &(Data.data[Data.first_entry]), size);
 	// bool sent = radio.write(&(Measurement), sizeof(Measurement_struct));
-	radio.startListening();
 	if (sent)
 	{
 		Data_first_delete();
+		CanSat.No_sending_count=0;
+		DEBUG_PRINTLN("Sent data");
 	}
 	else
 	{
-		DEBUG_PRINTLN("fuck");
+		DEBUG_PRINTLN("No connection");
+		delay(50);
+		++CanSat.No_sending_count;
+		if(CanSat.No_sending_count==10){
+			//Init_servo();
+			CanSat.No_sending_count=0;
+		}
 	}
+	radio.startListening();
 }
 
-#define SERVO_DELAY 2  // milliseconds between steps (smaller = smoother, larger = slower)
 
-void move_servo_smoothly(int from, int to) {
+void move_servo_smoothly(uint8_t from, uint8_t to) {
   myservo.attach(6);
   if (from < to) {
     for (int pos = from; pos <= to; pos++) {
@@ -531,7 +553,6 @@ void move_servo_smoothly(int from, int to) {
   myservo.detach();
 }
 
-
 void Radio_read()
 {
 
@@ -544,7 +565,8 @@ void Radio_read()
 		DEBUG_PRINT("Command received: ");
 		DEBUG_PRINTLN(CanSat.command[0]);
 
-		Run_Commands(); // Handle the command logic
+		// Run_Commands(); // Handle the command logic
+	Run_Commands();
 
 	}
 
