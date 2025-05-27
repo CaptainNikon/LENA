@@ -111,7 +111,7 @@ void setup()
 	//  we have the chanels 21-30 and 81-90
 	radio.enableDynamicPayloads();
 
-	radio.setRetries(1, 15);
+	radio.setRetries(15, 15);
   radio.setCRCLength(RF24_CRC_16);
 	radio.startListening();
   printf_begin();
