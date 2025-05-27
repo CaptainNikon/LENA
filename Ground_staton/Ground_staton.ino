@@ -111,7 +111,7 @@ void setup()
 	//  we have the chanels 21-30 and 81-90
 	radio.enableDynamicPayloads();
 
-	radio.setRetries(1, 15);
+	radio.setRetries(15, 15);
   radio.setCRCLength(RF24_CRC_16);
 	radio.startListening();
   printf_begin();
@@ -130,10 +130,10 @@ void setup()
 }
 
 void loop() {
-  // Always prioritize reading from the radio
   uint8_t pipe;
   if (radio.available(&pipe)) {
     radio.read(&Measurement, sizeof(Measurement));
+    //radio.writeAckPayload(1, &Measurement, sizeof(Measurement));
     //radio.flush_rx();
     // Send one clean tab-separated line over serial
       Serial.print(Measurement.time); Serial.print("\t");  // Timestamp
@@ -161,8 +161,10 @@ if (Serial.available()) {
   }
 
   if (command.length() == 3) {  // Enforce exact command length if you only expect 3-character commands
-    char commandBuffer[4]; // 3 chars + null terminator
+    char commandBuffer[4];
     command.toCharArray(commandBuffer, sizeof(commandBuffer));
+    commandBuffer[3] = '\0'; // safety null terminator
+
 
     bool success = false;
     radio.stopListening();
@@ -197,11 +199,8 @@ if (Serial.available()) {
 
     // Update OLED display
     display_ground();
-
-    //debug_print();
   }
 }
-
 
 void display_ground() {
 	int precision = 5;

@@ -1,18 +1,19 @@
 # Code to run the data acquisation of the ground station
-# All modules needed can be installed using: pip install pyserial matplotlib numpy os
+# All modules needed can be installed using: pip install pyserial matplotlib numpy
 
-import serial
-import threading
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import scrolledtext
+import os
 import time
 import csv
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-import numpy as np
+import threading
+import serial
 from collections import deque
-import os
+
+import tkinter as tk
+from tkinter import messagebox, scrolledtext, ttk
+
+import numpy as np
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Config of the Arduino port
 serial_port = 'COM3'
@@ -24,6 +25,12 @@ calib_buffer = []
 FLUSH_THRESHOLD = 10 # Save every n lines
 raw_filename = 'log_raw_output.csv'
 calib_filename = 'log_calibrated_output.csv'
+
+# For tracking data rate
+data_rate_counter = 0
+last_rate_time = time.time()
+current_data_rate = 0
+
 
 #buffer for plotting 
 plot_length = 100
@@ -80,10 +87,25 @@ def calibrate(values):
         ground_h = 0.858*float(values[10])+0.005 #Calibrated
     except Exception as e:
         raise ValueError(f"Calibration failed: {e}")
-    return [timep, distance, temp_c, acc_x_c, acc_y_c, acc_z_c, mag_x, mag_y, mag_z, ground_t, ground_h]
+    return [round(x, 5) for x in [timep,distance,temp_c,acc_x_c,acc_y_c,acc_z_c,mag_x,mag_y,mag_z,ground_t,ground_h]]
+
+
+def update_data_rate(label):
+    global data_rate_counter, last_rate_time, current_data_rate
+    now = time.time()
+    elapsed = now - last_rate_time
+    if elapsed >= 1.0:
+        current_data_rate = data_rate_counter / elapsed
+        label.config(text=f"Data Rate: {current_data_rate:.1f} lines/s")
+        data_rate_counter = 0
+        last_rate_time = now
+    label.after(1000, update_data_rate, label)
+
 
     
 def process_line(values, line, raw_buffer, calib_buffer, data_buffer, log_widget):
+    global data_rate_counter
+    data_rate_counter += 1
     try:
         timeperror= float(values[0])
         raw_buffer.append(values)
@@ -300,8 +322,8 @@ def add_control_buttons(command_frame, command_log):
         toggle_states[label] = False
 
     # Sensor toggles
-    create_toggle_button("Temp", "STI", "STO")
     create_toggle_button("Ultra", "SUI", "SUO")
+    create_toggle_button("Temp", "STI", "STO")
     create_toggle_button("Accel", "SAI", "SAO")
     create_toggle_button("Hall", "SHI", "SHO")
 
@@ -320,8 +342,8 @@ def add_control_buttons(command_frame, command_log):
         send_serial_command(cmd)
 
     mode_btn = tk.Button(command_frame, text="Survey Mode", bg="red", fg="white",
-                         width=12, command=toggle_mode)
-    mode_btn.pack(side=tk.LEFT, padx=10)
+                         width=20, command=toggle_mode)
+    mode_btn.pack(pady=(0, 10), padx=(0,10), anchor="e")
 
 
 # GUI
@@ -329,34 +351,53 @@ def start_gui():
     global ser, data_buffer, plot_length
     try:
         ser = serial.Serial(serial_port, baud_rate, timeout=1)
-        #log_widget.insert(tk.END, f"[Info] Connected to {serial_port} at {baud_rate} baud\n")
-        time.sleep(2)  # Allow Arduino to reset
+        time.sleep(2)
     except serial.SerialException as e:
         print(f"Could not open serial port {serial_port}: {e}")
         return
 
     root = tk.Tk()
     root.title("CanSat Logger + Command Sender")
+    root.attributes('-fullscreen', True)
+    root.bind("<Escape>", lambda e: root.attributes('-fullscreen', False))
 
-    # Sensor log
-    value_log = scrolledtext.ScrolledText(root, width=100, height=10)
-    value_log.pack(padx=10, pady=(10, 5))
+    style = ttk.Style()
 
-    # Command log
-    command_log = scrolledtext.ScrolledText(root, width=100, height=5)
-    command_log.pack(padx=10, pady=(0, 10))
+    # --- Main Layout Frame ---
+    frame = tk.Frame(root)
+    frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-    command_frame = tk.Frame(root)
-    command_frame.pack(pady=5)
+    # --- Logs ---
+    logs_label = tk.Label(frame, text="Sensor Data", font=("Helvetica", 10, "bold"), anchor="w")
+    logs_label.pack(fill="x")
 
-    add_control_buttons(command_frame, command_log)
+    value_log = scrolledtext.ScrolledText(frame, width=120, height=10, font=("Consolas", 9))
+    value_log.pack(pady=(0, 10), fill="x")
 
-    # Launch Serial thread
+    commands_label = tk.Label(frame, text="Command Log", font=("Helvetica", 10, "bold"), anchor="w")
+    commands_label.pack(fill="x")
+
+    command_log = scrolledtext.ScrolledText(frame, width=120, height=5, font=("Consolas", 9))
+    command_log.pack(pady=(0, 10), fill="x")
+
+    data_rate_label = tk.Label(frame, text="Data Rate: 0.0 lines/s", font=("Helvetica", 10, "bold"))
+    data_rate_label.pack(pady=(0, 10),padx=(0,10), anchor="e")
+
+    update_data_rate(data_rate_label)
+
+    # --- Buttons + Data Rate ---
+    button_frame = tk.Frame(frame)
+    button_frame.pack(pady=(0, 10), fill="x")
+
+    add_control_buttons(button_frame, command_log)
+
+    # --- Plot Area ---
+    create_plots(frame)
+
+    # --- Serial Thread ---
     threading.Thread(target=serial_reader, args=(value_log, command_log), daemon=True).start()
 
-    create_plots(root)
-
-    # Handle close
+    # --- Handle close ---
     def on_close():
         global running
         running = False

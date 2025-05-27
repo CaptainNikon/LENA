@@ -68,6 +68,7 @@ const byte address_c[6] = "Canst";
 // CanSat structure
 
 
+
 struct  __attribute__((packed)) CanSat_struct
 {
 	char command[4] = {0}; // 3-character command + null terminator
@@ -551,7 +552,6 @@ void move_servo_smoothly(uint8_t from, uint8_t to) {
   }
   myservo.detach();
 }
-
 
 void Radio_read()
 {
