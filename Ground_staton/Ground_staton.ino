@@ -102,7 +102,7 @@ void setup()
 	radio.begin();
 	// radio.setCRCLength(RF24_CRC_16); // Set check sum length, check sum=CRC
 	//   radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
-	radio.setChannel(21);
+	radio.setChannel(25);
 	radio.setAutoAck(true);
 	radio.setDataRate(RF24_250KBPS);
   radio.openWritingPipe(adress_c);
@@ -115,7 +115,7 @@ void setup()
 	radio.startListening();
   printf_begin();
   radio.printPrettyDetails();	
-  radio.setPALevel(RF24_PA_HIGH);
+  radio.setPALevel(RF24_PA_MAX);
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
