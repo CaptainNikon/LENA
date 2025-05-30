@@ -12,9 +12,9 @@
 #include <DallasTemperature.h> // Required header
 #include <Wire.h>			   // Wire library - used for I2C communication
 #include <Adafruit_LIS2MDL.h>
-#include <Adafruit_Sensor.h>
 #include <printf.h>
 #include <Servo.h>
+#include <ADXL345.h>
 
 // Defins the pins
 #define PIN_Ultrasonic_trig 3 // Ultrasonic triger pin
@@ -44,7 +44,8 @@
 
 // RF24 radio(7, 8); // CE, CSN
 
-int ADXL345 = 0x1D; // Adress for DRFduino
+// Remove or rename this:
+ADXL345 accel(0x1D); // Replace with 0x53 if needed
 
 RF24 radio(CE_PIN, SPI_Radio, 1000000); // CE, CSN
 OneWire oneWire(DS18B20_PIN);			// setup the oneWire to communicate with sensor
@@ -182,7 +183,21 @@ void setup()
 #ifdef DEBUG
 	Serial.begin(115200);
 #endif
-	Wire.begin();
+	//Wire.begin();
+
+  Serial.begin(115200);
+  Wire.begin();
+  Serial.println("I2C scan start...");
+  for (byte addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.print("Found device at 0x");
+      Serial.println(addr, HEX);
+    }
+  }
+  Serial.println("Scan done.");
+
+
 
 	// Initialization function
 	Init_CanSat(); // Dose nothing right now
@@ -311,7 +326,7 @@ void Init_Radio()
 
 	//  we have the chanels 21-30 and 81-90
 
-	radio.setPALevel(RF24_PA_MAX); // Change this to RF24_PA_MAX when we want high power
+	radio.setPALevel(RF24_PA_HIGH); // Change this to RF24_PA_MAX when we want high power
 
 	radio.openReadingPipe(1, address_c);
 	radio.startListening();
@@ -355,14 +370,16 @@ void Init_CanSat()
 	CanSat.No_sending_count = 0;
 }
 
-void Init_accelerometer()
-{									 // This function crashes
-	Wire.beginTransmission(ADXL345); // Start communicating with the device
-	Wire.write(0x2D);				 // Access/ talk to POWER_CTL Register - 0x2D
-	// Enable measurement
-	Wire.write(8); // (8dec -> 0000 1000 binary) Bit D3 High for measuring enable
-	Wire.endTransmission();
+void Init_accelerometer() {
+	if (!accel.begin()) {
+		DEBUG_PRINTLN("ADXL345 not detected!");
+		while (1); // Halt
+	}
+	accel.setRange(2);  // ±2g
+	accel.setRate(100); // 100 Hz
+	DEBUG_PRINTLN("ADXL345 initialized.");
 }
+
 
 void Init_hall_effect()
 {
@@ -433,36 +450,15 @@ void Measurement_Ultrasonic()
 	Measurement.distance = (uint8_t)(distance_cm); // round to nearest cm
 }
 
-void Measurement_accelerometer()
-{
-	// === Read acceleromter data === //
-	Wire.beginTransmission(ADXL345);
-	Wire.write(0x32); // Start with register 0x32 (ACCEL_XOUT_H)
-	Wire.endTransmission(false);
-	Wire.requestFrom(ADXL345, 6, true); // Read 6 registers total, each axis value is stored in 2 registers
-
-	// Reading the values, and 10 bit to int8
+void Measurement_accelerometer() {
 	int16_t x, y, z;
-	byte buffer[6];
-	for (uint8_t i = 0; i < 6; i++)
-	{
-		buffer[i] = Wire.read();
-	}
-	x = (int16_t)((buffer[1] << 8) | buffer[0]);
-	y = (int16_t)((buffer[3] << 8) | buffer[2]);
-	z = (int16_t)((buffer[5] << 8) | buffer[4]);
+	accel.readAccel(x, y, z);
 
 	Measurement.accelerometer_X = (Measurement.accelerometer_X + x) / 2;
 	Measurement.accelerometer_Y = (Measurement.accelerometer_Y + y) / 2;
 	Measurement.accelerometer_Z = (Measurement.accelerometer_Z + z) / 2;
-
-	/*
-		 //Samuels code problem is wrong bit shifiting and now we only need to read once
-		Measurement.accelerometer_X = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // X-axis value; // = (c1+c2)/2
-		Measurement.accelerometer_Y = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Y-axis value;
-		Measurement.accelerometer_Z = (Measurement.accelerometer_X + (Wire.read() | Wire.read() << 8) >> 2) >> 1; // Z-axis value;
-		*/
 }
+
 
 // This might be the way to get raw data from the accelerometer
 void Measurement_hall_effect()

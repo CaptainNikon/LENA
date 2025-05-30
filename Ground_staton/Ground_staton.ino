@@ -104,6 +104,7 @@ void setup()
 	//   radio.toggleAllPipes(true);		 // Toggle all pipes together, is this good idea?
 	radio.setChannel(21);
 	radio.setAutoAck(true);
+	// radio.setPALevel(RF24_PA_LOW);
 	radio.setDataRate(RF24_250KBPS);
   radio.openWritingPipe(adress_c);
 	radio.openReadingPipe(0, adress_g);
@@ -115,7 +116,7 @@ void setup()
 	radio.startListening();
   printf_begin();
   radio.printPrettyDetails();	
-  radio.setPALevel(RF24_PA_HIGH);
+  radio.setPALevel(RF24_PA_LOW);
 
   // Initialize the display
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C is typical
@@ -129,10 +130,10 @@ void setup()
 }
 
 void loop() {
+  // Always prioritize reading from the radio
   uint8_t pipe;
   if (radio.available(&pipe)) {
     radio.read(&Measurement, sizeof(Measurement));
-    //radio.writeAckPayload(1, &Measurement, sizeof(Measurement));
     //radio.flush_rx();
     // Send one clean tab-separated line over serial
       Serial.print(Measurement.time); Serial.print("\t");  // Timestamp

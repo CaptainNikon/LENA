@@ -1,0 +1,4 @@
+Time	Raw_Distance	Raw_Temp	Raw_AccX	Raw_AccY	Raw_AccZ	Raw_MagX	Raw_MagY	Raw_MagZ	Raw_Ground_T	Raw_Ground_H
+275	5	160	0	0	0	-71	-275	-535	0	0
+391	4	160	0	0	0	-76	-285	-559	9	86
+6948	5	152	0	0	0	-75	-290	-568	9	86
