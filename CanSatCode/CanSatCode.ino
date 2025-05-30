@@ -326,7 +326,7 @@ void Init_Radio()
 
 	//  we have the chanels 21-30 and 81-90
 
-	radio.setPALevel(RF24_PA_MAX); // Change this to RF24_PA_MAX when we want high power
+	radio.setPALevel(RF24_PA_HIGH); // Change this to RF24_PA_MAX when we want high power
 
 	radio.openReadingPipe(1, address_c);
 	radio.startListening();
